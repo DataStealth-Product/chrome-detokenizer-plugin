@@ -11,7 +11,7 @@ describe("incremental observer", () => {
 
     const target = document.createElement("div");
     document.body.append(target);
-    target.textContent = "[[TOKEN-Name-J]]";
+    target.textContent = "[<TOKEN-Name-J>]";
 
     await vi.advanceTimersByTimeAsync(100);
 

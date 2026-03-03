@@ -14,7 +14,7 @@ describe("detokenize client", () => {
     vi.useFakeTimers();
 
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ mappings: { "[[TOKEN-Name-J]]": "James" } }), {
+      new Response(JSON.stringify({ mappings: { "[<TOKEN-Name-J>]": "James" } }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       })
@@ -22,13 +22,13 @@ describe("detokenize client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new DetokenizeClient(new TokenCache(60_000));
-    const pending = client.fetchMappings("app.example.com", ["[[TOKEN-Name-J]]"]);
+    const pending = client.fetchMappings("app.example.com", ["[<TOKEN-Name-J>]"]);
 
     await vi.advanceTimersByTimeAsync(100);
     const result = await pending;
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result.mappings["[[TOKEN-Name-J]]"]).toBe("James");
+    expect(result.mappings["[<TOKEN-Name-J>]"]).toBe("James");
     expect(result.error).toBeUndefined();
 
     vi.useRealTimers();
@@ -41,7 +41,7 @@ describe("detokenize client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new DetokenizeClient(new TokenCache(60_000));
-    const pending = client.fetchMappings("app.example.com", ["[[TOKEN-Name-J]]"]);
+    const pending = client.fetchMappings("app.example.com", ["[<TOKEN-Name-J>]"]);
 
     await vi.runAllTimersAsync();
     const result = await pending;

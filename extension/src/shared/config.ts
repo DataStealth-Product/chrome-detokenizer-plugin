@@ -4,7 +4,7 @@ export const HOST_ALLOWLIST_PATTERNS = [
   "http://127.0.0.1/*"
 ] as const;
 
-export const TOKEN_HINT_PREFIX = "[[TOKEN-";
+export const TOKEN_HINT_PREFIX = "[<TOKEN-";
 export const DEFAULT_DEBOUNCE_MS = 75;
 export const DEFAULT_MAX_BATCH_SIZE = 100;
 export const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;

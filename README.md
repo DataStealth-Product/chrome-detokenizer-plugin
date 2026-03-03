@@ -14,11 +14,11 @@ Browser extension and local mock API for just-in-time DOM detokenization.
 
 ## Approved Tokens (Current Phase)
 Only the following token set is sent to backend and replaced in-page:
-- `[[TOKEN-Name-J]]` -> `James`
-- `[[TOKEN-Name-M]]` -> `Marc`
-- `[[TOKEN-Name-E]]` -> `Ed`
+- `[<TOKEN-Name-J>]` -> `James`
+- `[<TOKEN-Name-M>]` -> `Marc`
+- `[<TOKEN-Name-E>]` -> `Ed`
 
-Unknown token-shaped strings (for example `[[TOKEN-Name-X]]`) are ignored by outbound filtering and remain unchanged in the DOM.
+Unknown token-shaped strings (for example `[<TOKEN-Name-X>]`) are ignored by outbound filtering and remain unchanged in the DOM.
 
 ## SharePoint Scope
 The extension auto-runs on:

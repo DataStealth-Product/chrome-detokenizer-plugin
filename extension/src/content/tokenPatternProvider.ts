@@ -7,7 +7,7 @@ export interface TokenPatternProvider {
 }
 
 export class DefaultTokenPatternProvider implements TokenPatternProvider {
-  private static readonly TOKEN_REGEX = /\[\[TOKEN-[A-Za-z0-9-]+\]\]/g;
+  private static readonly TOKEN_REGEX = /\[<TOKEN-[A-Za-z0-9-]+>\]/g;
 
   getDetectionPatterns(): RegExp[] {
     // Return new regex instances so callers can safely mutate lastIndex.

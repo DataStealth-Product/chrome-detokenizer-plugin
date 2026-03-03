@@ -1,7 +1,7 @@
 export const APPROVED_TOKENS = [
-  "[[TOKEN-Name-J]]",
-  "[[TOKEN-Name-M]]",
-  "[[TOKEN-Name-E]]"
+  "[<TOKEN-Name-J>]",
+  "[<TOKEN-Name-M>]",
+  "[<TOKEN-Name-E>]"
 ] as const;
 
 export type ApprovedToken = (typeof APPROVED_TOKENS)[number];

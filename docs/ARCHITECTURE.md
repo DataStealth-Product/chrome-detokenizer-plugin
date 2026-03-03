@@ -12,9 +12,9 @@
   - `http://127.0.0.1/*`
 
 ## Approved Token Set (Current Phase)
-- `[[TOKEN-Name-J]]` -> `James`
-- `[[TOKEN-Name-M]]` -> `Marc`
-- `[[TOKEN-Name-E]]` -> `Ed`
+- `[<TOKEN-Name-J>]` -> `James`
+- `[<TOKEN-Name-M>]` -> `Marc`
+- `[<TOKEN-Name-E>]` -> `Ed`
 
 ## Extension Runtime
 1. Content script scans text nodes, editable controls, open shadow roots, and same-origin iframe documents.

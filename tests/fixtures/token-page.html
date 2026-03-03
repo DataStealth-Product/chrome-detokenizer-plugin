@@ -6,18 +6,18 @@
   </head>
   <body>
     <main>
-      <p>Employee: [[TOKEN-Name-J]]</p>
-      <p>Manager: [[TOKEN-Name-M]]</p>
-      <p>Director: [[TOKEN-Name-E]]</p>
-      <p>Unknown: [[TOKEN-Name-X]]</p>
-      <input value="[[TOKEN-Name-J]] [[TOKEN-Name-M]]" />
-      <textarea>[[TOKEN-Name-E]] [[TOKEN-Name-X]]</textarea>
-      <div contenteditable="true">[[TOKEN-Name-M]] [[TOKEN-Name-X]]</div>
+      <p>Employee: [&lt;TOKEN-Name-J&gt;]</p>
+      <p>Manager: [&lt;TOKEN-Name-M&gt;]</p>
+      <p>Director: [&lt;TOKEN-Name-E&gt;]</p>
+      <p>Unknown: [&lt;TOKEN-Name-X&gt;]</p>
+      <input value="[&lt;TOKEN-Name-J&gt;] [&lt;TOKEN-Name-M&gt;]" />
+      <textarea>[&lt;TOKEN-Name-E&gt;] [&lt;TOKEN-Name-X&gt;]</textarea>
+      <div contenteditable="true">[&lt;TOKEN-Name-M&gt;] [&lt;TOKEN-Name-X&gt;]</div>
     </main>
     <script>
       setTimeout(() => {
         const node = document.createElement("p");
-        node.textContent = "Async token: [[TOKEN-Name-E]]";
+        node.textContent = "Async token: [<TOKEN-Name-E>]";
         document.body.appendChild(node);
       }, 10);
     </script>

@@ -8,14 +8,14 @@ import {
 describe("token catalog", () => {
   it("contains exactly the approved three-token set", () => {
     expect(APPROVED_TOKENS).toEqual([
-      "[[TOKEN-Name-J]]",
-      "[[TOKEN-Name-M]]",
-      "[[TOKEN-Name-E]]"
+      "[<TOKEN-Name-J>]",
+      "[<TOKEN-Name-M>]",
+      "[<TOKEN-Name-E>]"
     ]);
-    expect(APPROVED_TOKEN_SET.has("[[TOKEN-Name-J]]")).toBe(true);
-    expect(APPROVED_TOKEN_SET.has("[[TOKEN-Name-M]]")).toBe(true);
-    expect(APPROVED_TOKEN_SET.has("[[TOKEN-Name-E]]")).toBe(true);
-    expect(APPROVED_TOKEN_SET.has("[[TOKEN-Name-X]]")).toBe(false);
+    expect(APPROVED_TOKEN_SET.has("[<TOKEN-Name-J>]")).toBe(true);
+    expect(APPROVED_TOKEN_SET.has("[<TOKEN-Name-M>]")).toBe(true);
+    expect(APPROVED_TOKEN_SET.has("[<TOKEN-Name-E>]")).toBe(true);
+    expect(APPROVED_TOKEN_SET.has("[<TOKEN-Name-X>]")).toBe(false);
   });
 
   it("reports allowlist send mode", () => {
@@ -23,7 +23,7 @@ describe("token catalog", () => {
   });
 
   it("guards approved token membership", () => {
-    expect(isApprovedToken("[[TOKEN-Name-J]]")).toBe(true);
-    expect(isApprovedToken("[[TOKEN-Name-X]]")).toBe(false);
+    expect(isApprovedToken("[<TOKEN-Name-J>]")).toBe(true);
+    expect(isApprovedToken("[<TOKEN-Name-X>]")).toBe(false);
   });
 });

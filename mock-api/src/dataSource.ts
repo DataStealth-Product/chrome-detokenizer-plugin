@@ -29,8 +29,8 @@ export class InMemoryDetokenizationSource implements DetokenizationSource {
 
 export function createDefaultSource(): DetokenizationSource {
   return new InMemoryDetokenizationSource({
-    "[[TOKEN-Name-J]]": "James",
-    "[[TOKEN-Name-M]]": "Marc",
-    "[[TOKEN-Name-E]]": "Ed"
+    "[<TOKEN-Name-J>]": "James",
+    "[<TOKEN-Name-M>]": "Marc",
+    "[<TOKEN-Name-E>]": "Ed"
   });
 }

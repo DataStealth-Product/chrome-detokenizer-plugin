@@ -35,9 +35,9 @@ The extension is scoped to:
 
 ## Approved Tokens (Current Phase)
 Only these tokens are sent and replaced:
-- `[[TOKEN-Name-J]]` -> `James`
-- `[[TOKEN-Name-M]]` -> `Marc`
-- `[[TOKEN-Name-E]]` -> `Ed`
+- `[<TOKEN-Name-J>]` -> `James`
+- `[<TOKEN-Name-M>]` -> `Marc`
+- `[<TOKEN-Name-E>]` -> `Ed`
 
 Unknown token-like values remain unchanged.
 
