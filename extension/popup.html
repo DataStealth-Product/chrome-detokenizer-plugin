@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Detokenizer</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: linear-gradient(150deg, #f5f7fb 0%, #dbe8ff 100%);
+        color: #10203a;
+      }
+
+      main {
+        padding: 16px;
+        display: grid;
+        gap: 10px;
+      }
+
+      h1 {
+        font-size: 15px;
+        margin: 0;
+        letter-spacing: 0.3px;
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid #bfd1f8;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .row:last-child {
+        margin-bottom: 0;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+      }
+
+      .status {
+        font-size: 11px;
+        color: #334b73;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DOM Detokenizer</h1>
+      <section class="panel toggle">
+        <span>Enabled For Tab</span>
+        <input id="enabled" type="checkbox" />
+      </section>
+      <section class="panel" id="metrics"></section>
+      <p class="status" id="status">Loading...</p>
+    </main>
+    <script type="module" src="/src/popup/main.ts"></script>
+  </body>
+</html>

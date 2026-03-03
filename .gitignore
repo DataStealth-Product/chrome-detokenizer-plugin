@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.playwright/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+
+# Vite build artifacts
+extension/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

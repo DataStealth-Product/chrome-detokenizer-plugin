@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Detokenizer Fixture</title>
+  </head>
+  <body>
+    <main>
+      <p>Employee: [[TOKEN-Name-J]]</p>
+      <input value="[[TOKEN-Name-J]]" />
+      <textarea>[[TOKEN-Name-J]]</textarea>
+      <div contenteditable="true">[[TOKEN-Name-J]]</div>
+    </main>
+    <script>
+      setTimeout(() => {
+        const node = document.createElement("p");
+        node.textContent = "Async token: [[TOKEN-Name-J]]";
+        document.body.appendChild(node);
+      }, 10);
+    </script>
+  </body>
+</html>

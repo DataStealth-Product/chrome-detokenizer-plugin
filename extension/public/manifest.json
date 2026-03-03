@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Chrome Detokenizer Plugin",
+  "version": "0.1.0",
+  "description": "Detects tokenized DOM values and replaces them with authorized cleartext values.",
+  "permissions": ["scripting", "activeTab", "storage", "tabs"],
+  "host_permissions": [
+    "https://app.example.com/*",
+    "https://*.example-enterprise.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.example.com/*",
+        "https://*.example-enterprise.com/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Detokenizer",
+    "default_popup": "popup.html"
+  }
+}
