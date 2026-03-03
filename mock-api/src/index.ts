@@ -58,6 +58,7 @@ app.post("/detokenize", (req, res) => {
     return;
   }
 
+  // Unknown tokens are intentionally omitted from mappings in this phase.
   const mappings = source.resolve(tokens);
 
   // Deliberately logs token IDs and counts only, never cleartext values.

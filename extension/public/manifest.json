@@ -5,8 +5,7 @@
   "description": "Detects tokenized DOM values and replaces them with authorized cleartext values.",
   "permissions": ["scripting", "activeTab", "storage", "tabs"],
   "host_permissions": [
-    "https://app.example.com/*",
-    "https://*.example-enterprise.com/*",
+    "https://*.sharepoint.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
@@ -17,8 +16,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://app.example.com/*",
-        "https://*.example-enterprise.com/*",
+        "https://*.sharepoint.com/*",
         "http://localhost/*",
         "http://127.0.0.1/*"
       ],

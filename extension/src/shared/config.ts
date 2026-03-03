@@ -1,6 +1,5 @@
 export const HOST_ALLOWLIST_PATTERNS = [
-  "https://app.example.com/*",
-  "https://*.example-enterprise.com/*",
+  "https://*.sharepoint.com/*",
   "http://localhost/*",
   "http://127.0.0.1/*"
 ] as const;
@@ -29,7 +28,7 @@ export function getApiConfig(): {
 export function isAllowedUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    const candidate = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    const candidate = `${parsed.protocol}//${parsed.hostname}${parsed.pathname}`;
     return HOST_ALLOWLIST_PATTERNS.some((pattern) => wildcardMatch(pattern, candidate));
   } catch {
     return false;

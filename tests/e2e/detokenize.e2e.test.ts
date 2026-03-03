@@ -6,5 +6,10 @@ test("detokenizes rendered tokens via extension", async ({ page }) => {
   await page.goto("http://localhost:4173");
 
   await expect(page.locator("body")).toContainText("James");
+  await expect(page.locator("body")).toContainText("Marc");
+  await expect(page.locator("body")).toContainText("Ed");
   await expect(page.locator("body")).not.toContainText("[[TOKEN-Name-J]]");
+  await expect(page.locator("body")).not.toContainText("[[TOKEN-Name-M]]");
+  await expect(page.locator("body")).not.toContainText("[[TOKEN-Name-E]]");
+  await expect(page.locator("body")).toContainText("[[TOKEN-Name-X]]");
 });

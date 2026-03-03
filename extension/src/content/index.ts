@@ -3,6 +3,7 @@ import { DEFAULT_DEBOUNCE_MS, isAllowedUrl } from "../shared/config";
 import { IncrementalObserver } from "./observer";
 import { ReplaceEngine } from "./replaceEngine";
 import { ScanEngine } from "./scanEngine";
+import { filterDetectionForOutbound } from "./tokenSendPolicy";
 import { DefaultTokenPatternProvider } from "./tokenPatternProvider";
 
 const provider = new DefaultTokenPatternProvider();
@@ -40,13 +41,12 @@ async function drainQueue(): Promise<void> {
       const roots = [...pendingRoots];
       pendingRoots.clear();
 
-      const detection = scanEngine.scanRoots(roots);
+      const detection = filterDetectionForOutbound(scanEngine.scanRoots(roots));
       if (detection.tokens.length === 0 || detection.occurrences.length === 0) {
         continue;
       }
 
-      const uniqueTokens = [...new Set(detection.tokens)];
-      const response = await requestMappings(uniqueTokens);
+      const response = await requestMappings(detection.tokens);
       if (!response) {
         continue;
       }

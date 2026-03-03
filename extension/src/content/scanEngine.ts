@@ -86,6 +86,10 @@ export class ScanEngine {
     visitedContainers.add(container);
 
     if (container instanceof Element) {
+      if (isExcludedElement(container)) {
+        return;
+      }
+
       this.scanEditableElement(container, tokens, occurrences);
       if (container.shadowRoot) {
         this.scanContainer(container.shadowRoot, visitedContainers, tokens, occurrences);
@@ -326,4 +330,10 @@ export function getNodePath(node: Node): string {
   }
 
   return segments.reverse().join("/");
+}
+
+const EXCLUDED_CONTAINER_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+
+function isExcludedElement(element: Element): boolean {
+  return EXCLUDED_CONTAINER_TAGS.has(element.tagName);
 }

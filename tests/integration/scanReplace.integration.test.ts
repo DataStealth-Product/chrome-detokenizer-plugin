@@ -1,5 +1,6 @@
 import { ReplaceEngine } from "../../extension/src/content/replaceEngine";
 import { ScanEngine } from "../../extension/src/content/scanEngine";
+import { filterDetectionForOutbound } from "../../extension/src/content/tokenSendPolicy";
 import { DefaultTokenPatternProvider } from "../../extension/src/content/tokenPatternProvider";
 
 describe("scan and replace integration", () => {
@@ -66,5 +67,45 @@ describe("scan and replace integration", () => {
     expect(detection.occurrences.some((item) => item.targetType === "input")).toBe(true);
     expect(detection.occurrences.some((item) => item.targetType === "textarea")).toBe(true);
     expect(detection.occurrences.some((item) => item.targetType === "contenteditable")).toBe(true);
+  });
+
+  it("only replaces approved tokens when mixed tokens are present", () => {
+    document.body.innerHTML = `<div>[[TOKEN-Name-J]] [[TOKEN-Name-X]] [[TOKEN-Name-M]]</div>`;
+
+    const scanEngine = new ScanEngine(new DefaultTokenPatternProvider());
+    const replaceEngine = new ReplaceEngine();
+    const filtered = filterDetectionForOutbound(scanEngine.scanRoots([document]));
+
+    expect(filtered.tokens).toEqual(["[[TOKEN-Name-J]]", "[[TOKEN-Name-M]]"]);
+
+    replaceEngine.applyMappings(filtered.occurrences, {
+      "[[TOKEN-Name-J]]": "James",
+      "[[TOKEN-Name-M]]": "Marc",
+      "[[TOKEN-Name-E]]": "Ed"
+    });
+
+    expect(document.body.textContent).toContain("James");
+    expect(document.body.textContent).toContain("Marc");
+    expect(document.body.textContent).toContain("[[TOKEN-Name-X]]");
+  });
+
+  it("does not scan script/style/noscript/template content", () => {
+    const script = document.createElement("script");
+    script.textContent = "const t='[[TOKEN-Name-J]]';";
+    const style = document.createElement("style");
+    style.textContent = ".x::before { content: '[[TOKEN-Name-M]]'; }";
+    const noscript = document.createElement("noscript");
+    noscript.textContent = "[[TOKEN-Name-E]]";
+    const template = document.createElement("template");
+    template.innerHTML = "<span>[[TOKEN-Name-J]]</span>";
+    const visible = document.createElement("div");
+    visible.textContent = "Visible [[TOKEN-Name-J]]";
+
+    document.body.replaceChildren(script, style, noscript, template, visible);
+
+    const scanEngine = new ScanEngine(new DefaultTokenPatternProvider());
+    const detection = scanEngine.scanRoots([document]);
+
+    expect(detection.tokens).toEqual(["[[TOKEN-Name-J]]"]);
   });
 });
