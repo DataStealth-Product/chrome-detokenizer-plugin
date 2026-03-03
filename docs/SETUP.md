@@ -21,6 +21,8 @@ npm run build:extension
 
 Built files are generated in `extension/dist`.
 
+If build succeeds, `extension/dist/assets/content.js` has been verified as classic-script compatible (no top-level `import`/`export`) so Chrome can execute it as a content script.
+
 ## Load in Chrome
 1. Open `chrome://extensions`.
 2. Enable Developer mode.
@@ -46,6 +48,8 @@ Copy `.env.example` to `.env` and adjust values:
 - `VITE_DETOKENIZER_API_URL`
 - `VITE_DETOKENIZER_AUTH_TOKEN`
 - `VITE_ALLOW_HTTP_DEV`
+
+If you see `[detokenizer] detokenize error: api_url_not_secure`, either use an `https://` API URL or set `VITE_ALLOW_HTTP_DEV=true` only for localhost/127.0.0.1 development APIs.
 
 ## Tests
 ```bash

@@ -20,7 +20,9 @@ export function getApiConfig(): {
 } {
   const apiUrl = import.meta.env.VITE_DETOKENIZER_API_URL ?? DEFAULT_API_URL;
   const authToken = import.meta.env.VITE_DETOKENIZER_AUTH_TOKEN ?? "dev-token";
-  const allowHttpDev = (import.meta.env.VITE_ALLOW_HTTP_DEV ?? "false") === "true";
+  const allowHttpDev = import.meta.env.VITE_ALLOW_HTTP_DEV !== undefined
+    ? import.meta.env.VITE_ALLOW_HTTP_DEV === "true"
+    : isLocalDevApiUrl(apiUrl);
 
   return { apiUrl, authToken, allowHttpDev };
 }
@@ -46,6 +48,15 @@ export function isSecureApiUrl(apiUrl: string, allowHttpDev: boolean): boolean {
       return false;
     }
 
+    return parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
+}
+
+function isLocalDevApiUrl(apiUrl: string): boolean {
+  try {
+    const parsed = new URL(apiUrl);
     return parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
   } catch {
     return false;
