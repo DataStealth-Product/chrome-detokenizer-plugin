@@ -51,4 +51,25 @@ describe("detokenize client", () => {
 
     vi.useRealTimers();
   });
+
+  it("uses embedded mock mappings when localhost API is unreachable", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("VITE_DETOKENIZER_API_URL", "http://127.0.0.1:8787/detokenize");
+    vi.stubEnv("VITE_ALLOW_HTTP_DEV", "true");
+
+    const fetchMock = vi.fn().mockRejectedValue(new Error("Failed to fetch"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new DetokenizeClient(new TokenCache(60_000));
+    const pending = client.fetchMappings("app.example.com", ["[<TOKEN-Name-J>]", "[<TOKEN-Name-X>]"]);
+
+    await vi.advanceTimersByTimeAsync(100);
+    const result = await pending;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.mappings).toEqual({ "[<TOKEN-Name-J>]": "James" });
+    expect(result.error).toBeUndefined();
+
+    vi.useRealTimers();
+  });
 });

@@ -5,6 +5,7 @@
   "description": "Detects tokenized DOM values and replaces them with authorized cleartext values.",
   "permissions": ["scripting", "activeTab", "storage", "tabs"],
   "host_permissions": [
+    "https://*/*",
     "https://*.sharepoint.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"

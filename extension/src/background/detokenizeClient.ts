@@ -4,10 +4,12 @@ import {
   REQUEST_RETRIES,
   REQUEST_TIMEOUT_MS,
   getApiConfig,
-  isSecureApiUrl
+  isSecureApiUrl,
+  wildcardMatch
 } from "../shared/config";
 import { DetokenizeResponseSchema } from "../shared/contracts";
 import { TokenCache } from "./cache";
+import { resolveMockMappings } from "../../../shared/mockMappings";
 
 export interface FetchMappingsResult {
   mappings: Record<string, string>;
@@ -144,6 +146,7 @@ export class DetokenizeClient {
 
   private async callApi(domain: string, tokens: string[]): Promise<FetchMappingsResult> {
     const requestId = crypto.randomUUID();
+    const apiOrigin = safeOrigin(this.apiUrl);
 
     if (!isSecureApiUrl(this.apiUrl, this.allowHttpDev)) {
       return {
@@ -151,6 +154,15 @@ export class DetokenizeClient {
         requestId,
         latencyMs: 0,
         error: "api_url_not_secure"
+      };
+    }
+
+    if (!isApiHostPermitted(this.apiUrl)) {
+      return {
+        mappings: {},
+        requestId,
+        latencyMs: 0,
+        error: `api_host_not_permitted:${apiOrigin}`
       };
     }
 
@@ -192,7 +204,16 @@ export class DetokenizeClient {
         };
       } catch (error) {
         const latencyMs = Number((performance.now() - startedAt).toFixed(2));
-        const message = error instanceof Error ? error.message : "detokenize_unknown_error";
+        const embeddedFallbackMappings = getEmbeddedFallbackMappings(this.apiUrl, error, tokens);
+        if (embeddedFallbackMappings !== null) {
+          return {
+            mappings: embeddedFallbackMappings,
+            requestId,
+            latencyMs
+          };
+        }
+
+        const message = normalizeFetchError(error, apiOrigin);
 
         if (attempt === REQUEST_RETRIES) {
           return {
@@ -246,4 +267,90 @@ function backoffMs(attempt: number): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+}
+
+function normalizeFetchError(error: unknown, apiOrigin: string): string {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return `detokenize_timeout:${REQUEST_TIMEOUT_MS}ms`;
+  }
+
+  if (error instanceof Error && error.message === "Failed to fetch") {
+    return `detokenize_fetch_failed:${apiOrigin}`;
+  }
+
+  return error instanceof Error ? error.message : "detokenize_unknown_error";
+}
+
+function safeOrigin(apiUrl: string): string {
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    return "invalid_api_url";
+  }
+}
+
+function getEmbeddedFallbackMappings(
+  apiUrl: string,
+  error: unknown,
+  tokens: string[]
+): Record<string, string> | null {
+  if (!isLocalApiUrl(apiUrl)) {
+    return null;
+  }
+
+  if (!isNetworkFetchError(error)) {
+    return null;
+  }
+
+  return resolveMockMappings(tokens);
+}
+
+function isLocalApiUrl(apiUrl: string): boolean {
+  try {
+    const parsed = new URL(apiUrl);
+    if (parsed.protocol !== "http:") {
+      return false;
+    }
+
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function isNetworkFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const normalizedMessage = error.message.toLowerCase();
+  return normalizedMessage === "failed to fetch" || normalizedMessage.includes("network");
+}
+
+function isApiHostPermitted(apiUrl: string): boolean {
+  const manifest = getManifestSafe();
+  if (!manifest) {
+    return true;
+  }
+
+  const hostPermissions = manifest.host_permissions ?? [];
+  if (hostPermissions.includes("<all_urls>")) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(apiUrl);
+    const candidate = `${parsed.protocol}//${parsed.hostname}${parsed.pathname}`;
+    return hostPermissions.some((pattern) => wildcardMatch(pattern, candidate));
+  } catch {
+    return false;
+  }
+}
+
+function getManifestSafe(): chrome.runtime.Manifest | null {
+  if (typeof chrome === "undefined" || !chrome.runtime?.getManifest) {
+    return null;
+  }
+
+  return chrome.runtime.getManifest();
 }

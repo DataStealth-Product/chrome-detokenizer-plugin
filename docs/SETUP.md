@@ -9,6 +9,11 @@
 npm install
 ```
 
+## One-Command Local Setup
+```bash
+npm run dev:oob
+```
+
 ## Run Mock API
 ```bash
 npm run dev:mock-api
@@ -50,6 +55,8 @@ Copy `.env.example` to `.env` and adjust values:
 - `VITE_ALLOW_HTTP_DEV`
 
 If you see `[detokenizer] detokenize error: api_url_not_secure`, either use an `https://` API URL or set `VITE_ALLOW_HTTP_DEV=true` only for localhost/127.0.0.1 development APIs.
+
+If localhost mock API is down (`detokenize_fetch_failed:http://127.0.0.1:8787`), the extension now fails over to built-in mock mappings so detokenization still works while you restart the mock server.
 
 ## Tests
 ```bash

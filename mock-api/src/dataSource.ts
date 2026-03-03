@@ -1,3 +1,5 @@
+import { DEFAULT_MOCK_TOKEN_MAPPINGS } from "../../shared/mockMappings";
+
 export interface DetokenizationSource {
   resolve(tokens: string[]): Record<string, string>;
 }
@@ -28,9 +30,5 @@ export class InMemoryDetokenizationSource implements DetokenizationSource {
 }
 
 export function createDefaultSource(): DetokenizationSource {
-  return new InMemoryDetokenizationSource({
-    "[<TOKEN-Name-J>]": "James",
-    "[<TOKEN-Name-M>]": "Marc",
-    "[<TOKEN-Name-E>]": "Ed"
-  });
+  return new InMemoryDetokenizationSource(DEFAULT_MOCK_TOKEN_MAPPINGS);
 }

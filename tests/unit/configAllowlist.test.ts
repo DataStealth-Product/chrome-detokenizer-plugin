@@ -22,10 +22,10 @@ describe("host allowlist", () => {
     expect(isAllowedUrl("https://www.microsoft.com/")).toBe(false);
   });
 
-  it("allows localhost dev API by default when API URL is localhost http", () => {
+  it("allows local dev API by default when API URL is loopback http", () => {
     const apiConfig = getApiConfig();
 
-    expect(apiConfig.apiUrl).toBe("http://localhost:8787/detokenize");
+    expect(apiConfig.apiUrl).toBe("http://127.0.0.1:8787/detokenize");
     expect(apiConfig.allowHttpDev).toBe(true);
   });
 

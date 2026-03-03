@@ -29,8 +29,7 @@ The extension auto-runs on:
 ## Quick Start
 ```bash
 npm install
-npm run dev:mock-api
-npm run build:extension
+npm run dev:oob
 ```
 
 Then load `extension/dist` in `chrome://extensions` via **Load unpacked**.
@@ -46,10 +45,15 @@ Use `.env` values (see `.env.example`):
 - `npm run build:extension`
 - `npm run package:extension`
 - `npm run dev:mock-api`
+- `npm run dev:mock-api:watch`
+- `npm run dev:oob`
 - `npm run test:unit`
 - `npm run test:integration`
 - `npm run test:e2e`
 - `npm run test`
+
+## Local Mock Fallback
+If `VITE_DETOKENIZER_API_URL` points to localhost/127.0.0.1 and the mock API is temporarily unreachable, the extension now falls back to the same local token mappings used by the mock API. This keeps detokenization working for tonight's testing while you bring the mock server back up.
 
 ## Docs
 - `docs/ARCHITECTURE.md`

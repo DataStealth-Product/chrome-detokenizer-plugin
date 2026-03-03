@@ -11,7 +11,7 @@ export const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 export const REQUEST_TIMEOUT_MS = 3_000;
 export const REQUEST_RETRIES = 2;
 
-const DEFAULT_API_URL = "http://localhost:8787/detokenize";
+const DEFAULT_API_URL = "http://127.0.0.1:8787/detokenize";
 
 export function getApiConfig(): {
   apiUrl: string;
