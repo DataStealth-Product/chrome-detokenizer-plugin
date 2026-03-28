@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Detokenizer Manual Test Fixture</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: #f5f8ff;
+        color: #10203a;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero,
+      .panel {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #c6d4f7;
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 10px 30px rgba(14, 39, 84, 0.08);
+      }
+
+      .hero h1,
+      .panel h2 {
+        margin: 0 0 8px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid #d8e1f8;
+        padding: 10px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #52688f;
+      }
+
+      .visual-grid,
+      .downloads-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+
+      .visual-card,
+      .download-card {
+        border: 1px solid #d8e1f8;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fbfdff;
+      }
+
+      canvas,
+      img,
+      iframe {
+        max-width: 100%;
+        border: 1px solid #bfd1f8;
+        border-radius: 10px;
+        background: #ffffff;
+      }
+
+      .download-card a {
+        color: #164dcf;
+        font-weight: 600;
+      }
+
+      code {
+        font-size: 12px;
+        background: #eef4ff;
+        padding: 1px 5px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>Detokenizer Full Manual Test Fixture</h1>
+        <p>
+          This page is for fast human smoke testing. Every section below is clearly labeled and intentionally packed
+          with approved test tokens plus a few unknown tokens that should remain unchanged.
+        </p>
+        <p>
+          Expected approved replacements:
+          <code>[&lt;TOKEN-Name-J&gt;] -> James</code>,
+          <code>[&lt;TOKEN-Name-M&gt;] -> Marc</code>,
+          <code>[&lt;TOKEN-Name-E&gt;] -> Ed</code>,
+          <code>[&lt;TOKEN-Name-JM&gt;] -> Jay</code>,
+          <code>[&lt;TOKEN-Name-D&gt;] -> Daniel</code>.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>DOM And Editable Surfaces</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th>Fixture</th>
+              <th>Expected</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Plain text</td>
+              <td id="manual-text">Employee: [&lt;TOKEN-Name-J&gt;]</td>
+              <td>Employee: James</td>
+            </tr>
+            <tr>
+              <td>Unknown token</td>
+              <td id="manual-unknown">Unknown stays: [&lt;TOKEN-Name-X&gt;]</td>
+              <td>Still shows <code>[&lt;TOKEN-Name-X&gt;]</code></td>
+            </tr>
+            <tr>
+              <td>Rich text split</td>
+              <td id="manual-rich"><span>[&lt;TOKEN-</span><strong>Name-D&gt;]</strong></td>
+              <td>Daniel</td>
+            </tr>
+            <tr>
+              <td>Input value</td>
+              <td><input id="manual-input" value="[&lt;TOKEN-Name-J&gt;] [&lt;TOKEN-Name-M&gt;]" /></td>
+              <td>James Marc</td>
+            </tr>
+            <tr>
+              <td>Placeholder</td>
+              <td><input id="manual-placeholder" placeholder="Lookup [&lt;TOKEN-Name-JM&gt;]" /></td>
+              <td>Lookup Jay</td>
+            </tr>
+            <tr>
+              <td>Textarea</td>
+              <td><textarea id="manual-textarea">[&lt;TOKEN-Name-E&gt;] [&lt;TOKEN-Name-X&gt;]</textarea></td>
+              <td>Ed plus unknown token unchanged</td>
+            </tr>
+            <tr>
+              <td>Contenteditable</td>
+              <td><div id="manual-editable" contenteditable="true">[&lt;TOKEN-Name-M&gt;] [&lt;TOKEN-Name-X&gt;]</div></td>
+              <td>Marc plus unknown token unchanged</td>
+            </tr>
+            <tr>
+              <td>Attribute-only image</td>
+              <td><img id="manual-attr-image" alt="Profile [&lt;TOKEN-Name-D&gt;]" title="Lead [&lt;TOKEN-Name-J&gt;]" /></td>
+              <td><code>alt</code> and <code>title</code> detokenized</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Shadow, Async, And Frame Coverage</h2>
+        <div id="manual-shadow-host"></div>
+        <p id="manual-async-status">Async token pending...</p>
+        <iframe id="manual-frame" src="/iframe-token-page.html" title="Same-origin iframe test"></iframe>
+      </section>
+
+      <section class="panel">
+        <h2>Visible OCR Surfaces</h2>
+        <div class="visual-grid">
+          <article class="visual-card">
+            <h3>Image Surface</h3>
+            <p>Rendered as inline SVG with visible token text.</p>
+            <img id="manual-ocr-image" alt="OCR image fixture" />
+          </article>
+          <article class="visual-card">
+            <h3>Canvas Surface</h3>
+            <p>Rendered with visible token text directly on the canvas.</p>
+            <canvas id="manual-ocr-canvas" width="360" height="140"></canvas>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Supported Downloads</h2>
+        <div class="downloads-grid">
+          <article class="download-card">
+            <h3>Text</h3>
+            <a href="/downloads/sample.txt" download="sample.txt">Download tokenized TXT</a>
+          </article>
+          <article class="download-card">
+            <h3>JSON</h3>
+            <a href="/downloads/sample.json" download="sample.json">Download tokenized JSON</a>
+          </article>
+          <article class="download-card">
+            <h3>PDF</h3>
+            <a href="/downloads/sample.pdf" download="sample.pdf">Download tokenized PDF</a>
+          </article>
+          <article class="download-card">
+            <h3>DOCX</h3>
+            <a href="/downloads/sample.docx" download="sample.docx">Download tokenized DOCX</a>
+          </article>
+          <article class="download-card">
+            <h3>XLSX</h3>
+            <a href="/downloads/sample.xlsx" download="sample.xlsx">Download tokenized XLSX</a>
+          </article>
+          <article class="download-card">
+            <h3>PPTX</h3>
+            <a href="/downloads/sample.pptx" download="sample.pptx">Download tokenized PPTX</a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const shadowHost = document.getElementById("manual-shadow-host");
+      const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+      shadowRoot.innerHTML = `
+        <section>
+          <p id="shadow-text">Shadow [&lt;TOKEN-Name-M&gt;]</p>
+          <span id="shadow-title" title="Shadow title [&lt;TOKEN-Name-E&gt;]">ready</span>
+        </section>
+      `;
+
+      setTimeout(() => {
+        document.getElementById("manual-async-status").textContent = "Async token: [<TOKEN-Name-E>]";
+      }, 50);
+
+      const imageMarkup = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140">
+          <rect width="360" height="140" rx="12" fill="#ffffff" stroke="#bfd1f8"/>
+          <text x="24" y="58" font-size="20" font-family="Arial" fill="#10203a">Image OCR: [<TOKEN-Name-J>]</text>
+          <text x="24" y="92" font-size="20" font-family="Arial" fill="#10203a">Unknown: [<TOKEN-Name-X>]</text>
+        </svg>
+      `;
+      document.getElementById("manual-ocr-image").src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(imageMarkup);
+
+      const canvas = document.getElementById("manual-ocr-canvas");
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = "#bfd1f8";
+      context.strokeRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#10203a";
+      context.font = "20px Arial";
+      context.fillText("Canvas OCR: [<TOKEN-Name-M>]", 24, 54);
+      context.fillText("Canvas OCR: [<TOKEN-Name-E>]", 24, 92);
+    </script>
+  </body>
+</html>
