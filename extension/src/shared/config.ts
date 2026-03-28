@@ -8,7 +8,7 @@ export const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 export const DEFAULT_SENSITIVE_TTL_MS = 90 * 1000;
 export const REQUEST_TIMEOUT_MS = 3_000;
 export const REQUEST_RETRIES = 2;
-export const SUPPORTED_DOWNLOAD_EXTENSIONS = ["txt", "json", "png", "jpg", "jpeg", "webp", "pdf"] as const;
+export const SUPPORTED_DOWNLOAD_EXTENSIONS = ["txt", "json", "png", "jpg", "jpeg", "webp", "pdf", "docx", "xlsx", "pptx"] as const;
 export const SUPPORTED_IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] as const;
 
 const DEFAULT_API_URL = "http://127.0.0.1:8787/detokenize";

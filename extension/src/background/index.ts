@@ -24,7 +24,6 @@ import {
   getDetokenizationScope,
   getSupportedDownloadExtension
 } from "../shared/config";
-import { findApprovedTokens } from "../shared/tokenMatching";
 import { TokenCache } from "./cache";
 import { DetokenizeClient } from "./detokenizeClient";
 import { ProcessingJobManager } from "./jobManager";
@@ -352,6 +351,8 @@ async function handleDownloadRequest(
     ? "text"
     : extension === "json"
       ? "json"
+      : extension === "docx" || extension === "xlsx" || extension === "pptx"
+        ? "office"
       : extension === "pdf"
         ? "pdf"
         : "image";
@@ -402,6 +403,19 @@ async function handleDownloadRequest(
         .map((match) => toReplacementRegion(match.token, result.mappings[match.token], match.left, match.top, match.width, match.height))
         .filter((item): item is ReplacementRegion => item !== null);
       const objectUrl = await offscreenClient.rewriteImageArtifact(bytes, contentType, replacements);
+      await downloadObjectUrl(objectUrl, fileName);
+      finishJob(job.id, tabId, objectUrl);
+      return;
+    }
+
+    if (artifactKind === "office") {
+      updateJob(job.id, "ocr");
+      const officeExtension = extension as "docx" | "xlsx" | "pptx";
+      const scanned = await offscreenClient.scanOfficeArtifact(bytes, officeExtension);
+      const result = await client.fetchMappings(domain, scanned.tokens);
+      updateMetrics(tabId, result);
+      updateJob(job.id, "rewriting");
+      const objectUrl = await offscreenClient.rewriteOfficeArtifact(bytes, officeExtension, result.mappings);
       await downloadObjectUrl(objectUrl, fileName);
       finishJob(job.id, tabId, objectUrl);
       return;
@@ -480,6 +494,8 @@ function inferContentType(kind: ArtifactKind): string {
       return "application/pdf";
     case "image":
       return "image/png";
+    case "office":
+      return "application/octet-stream";
     default:
       return "text/plain;charset=utf-8";
   }

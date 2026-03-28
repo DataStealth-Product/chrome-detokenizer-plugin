@@ -6,6 +6,8 @@ export const OffscreenMessageType = {
   REWRITE_IMAGE_ARTIFACT: "OFFSCREEN_REWRITE_IMAGE_ARTIFACT",
   SCAN_PDF_ARTIFACT: "OFFSCREEN_SCAN_PDF_ARTIFACT",
   REWRITE_PDF_ARTIFACT: "OFFSCREEN_REWRITE_PDF_ARTIFACT",
+  SCAN_OFFICE_ARTIFACT: "OFFSCREEN_SCAN_OFFICE_ARTIFACT",
+  REWRITE_OFFICE_ARTIFACT: "OFFSCREEN_REWRITE_OFFICE_ARTIFACT",
   REVOKE_OBJECT_URL: "OFFSCREEN_REVOKE_OBJECT_URL"
 } as const;
 
@@ -118,6 +120,36 @@ export interface OffscreenRewritePdfArtifactResponse {
   contentType: string;
 }
 
+export interface OfficeArtifactScanResult {
+  tokens: string[];
+}
+
+export interface OffscreenScanOfficeArtifactRequest {
+  type: typeof OffscreenMessageType.SCAN_OFFICE_ARTIFACT;
+  payload: {
+    bytes: ArrayBuffer;
+    extension: "docx" | "xlsx" | "pptx";
+  };
+}
+
+export interface OffscreenScanOfficeArtifactResponse {
+  result: OfficeArtifactScanResult;
+}
+
+export interface OffscreenRewriteOfficeArtifactRequest {
+  type: typeof OffscreenMessageType.REWRITE_OFFICE_ARTIFACT;
+  payload: {
+    bytes: ArrayBuffer;
+    extension: "docx" | "xlsx" | "pptx";
+    mappings: Record<string, string>;
+  };
+}
+
+export interface OffscreenRewriteOfficeArtifactResponse {
+  objectUrl: string;
+  contentType: string;
+}
+
 export interface OffscreenRevokeObjectUrlRequest {
   type: typeof OffscreenMessageType.REVOKE_OBJECT_URL;
   payload: {
@@ -131,4 +163,6 @@ export type OffscreenRequest =
   | OffscreenRewriteImageArtifactRequest
   | OffscreenScanPdfArtifactRequest
   | OffscreenRewritePdfArtifactRequest
+  | OffscreenScanOfficeArtifactRequest
+  | OffscreenRewriteOfficeArtifactRequest
   | OffscreenRevokeObjectUrlRequest;

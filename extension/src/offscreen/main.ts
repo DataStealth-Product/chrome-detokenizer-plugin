@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import { findApprovedTokenRanges } from "../shared/tokenMatching";
@@ -5,6 +6,7 @@ import type { ReplacementRegion } from "../shared/contracts";
 import {
   OffscreenMessageType,
   type ImageArtifactScanResult,
+  type OfficeArtifactScanResult,
   type OffscreenRequest,
   type PdfArtifactScanResult,
   type PdfPageRewriteInstruction,
@@ -12,6 +14,7 @@ import {
   type SurfaceScanResult,
   type SurfaceTokenRegion
 } from "./messages";
+import { rewriteOfficeXml, scanOfficeXml, type OfficeExtension } from "./officeXmlProcessor";
 
 interface TextDetectionResult {
   rawValue?: string;
@@ -67,6 +70,17 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
         sendResponse({
           objectUrl: await rewritePdfArtifact(request.payload.bytes, request.payload.pages),
           contentType: "application/pdf"
+        });
+        return;
+      case OffscreenMessageType.SCAN_OFFICE_ARTIFACT:
+        sendResponse({
+          result: await scanOfficeArtifact(request.payload.bytes, request.payload.extension)
+        });
+        return;
+      case OffscreenMessageType.REWRITE_OFFICE_ARTIFACT:
+        sendResponse({
+          objectUrl: await rewriteOfficeArtifact(request.payload.bytes, request.payload.extension, request.payload.mappings),
+          contentType: getOfficeContentType(request.payload.extension)
         });
         return;
       case OffscreenMessageType.REVOKE_OBJECT_URL:
@@ -128,14 +142,22 @@ async function rewriteImageArtifact(
   contentType: string,
   replacements: ReplacementRegion[]
 ): Promise<string> {
+  const blob = await rewriteImageArtifactToBlob(bytes, contentType, replacements);
+  return URL.createObjectURL(blob);
+}
+
+async function rewriteImageArtifactToBlob(
+  bytes: ArrayBuffer,
+  contentType: string,
+  replacements: ReplacementRegion[]
+): Promise<Blob> {
   const bitmap = await loadImageBitmap(new Blob([bytes], { type: contentType }));
   const canvas = drawBitmapToCanvas(bitmap);
   const context = require2dContext(canvas);
 
   applyReplacementRegions(context, replacements, canvas.height);
 
-  const blob = await canvasToBlob(canvas, contentType);
-  return URL.createObjectURL(blob);
+  return canvasToBlob(canvas, contentType);
 }
 
 async function scanPdfArtifact(bytes: ArrayBuffer): Promise<PdfArtifactScanResult> {
@@ -278,6 +300,86 @@ async function rewritePdfArtifact(bytes: ArrayBuffer, pages: PdfPageRewriteInstr
   return URL.createObjectURL(new Blob([saved], { type: "application/pdf" }));
 }
 
+async function scanOfficeArtifact(bytes: ArrayBuffer, extension: OfficeExtension): Promise<OfficeArtifactScanResult> {
+  const zip = await JSZip.loadAsync(bytes);
+  const tokens = new Set<string>();
+
+  for (const entry of getOfficeXmlEntries(zip, extension)) {
+    const xml = await entry.async("string");
+    for (const token of scanOfficeXml(xml, extension).tokens) {
+      tokens.add(token);
+    }
+  }
+
+  for (const entry of getOfficeImageEntries(zip)) {
+    const imageBytes = await entry.async("arraybuffer");
+    const contentType = inferImageContentType(entry.name);
+    if (!contentType) {
+      continue;
+    }
+
+    const result = await scanImageArtifact(imageBytes, contentType);
+    for (const match of result.matches) {
+      tokens.add(match.token);
+    }
+  }
+
+  return {
+    tokens: [...tokens]
+  };
+}
+
+async function rewriteOfficeArtifact(
+  bytes: ArrayBuffer,
+  extension: OfficeExtension,
+  mappings: Record<string, string>
+): Promise<string> {
+  const zip = await JSZip.loadAsync(bytes);
+
+  for (const entry of getOfficeXmlEntries(zip, extension)) {
+    const xml = await entry.async("string");
+    const rewritten = rewriteOfficeXml(xml, extension, mappings);
+    zip.file(entry.name, rewritten.xml);
+  }
+
+  for (const entry of getOfficeImageEntries(zip)) {
+    const imageBytes = await entry.async("arraybuffer");
+    const contentType = inferImageContentType(entry.name);
+    if (!contentType) {
+      continue;
+    }
+
+    const scanned = await scanImageArtifact(imageBytes, contentType);
+    const replacements = scanned.matches
+      .map((match) => {
+        const replacement = mappings[match.token];
+        if (!replacement) {
+          return null;
+        }
+
+        return {
+          token: match.token,
+          replacement,
+          left: match.left,
+          top: match.top,
+          width: match.width,
+          height: match.height
+        };
+      })
+      .filter((item): item is ReplacementRegion => item !== null);
+
+    if (replacements.length === 0) {
+      continue;
+    }
+
+    const blob = await rewriteImageArtifactToBlob(imageBytes, contentType, replacements);
+    zip.file(entry.name, await blob.arrayBuffer());
+  }
+
+  const rebuiltBytes = await zip.generateAsync({ type: "uint8array" });
+  return URL.createObjectURL(new Blob([rebuiltBytes], { type: getOfficeContentType(extension) }));
+}
+
 async function detectTokenRegions(source: CanvasImageSource, scale: number): Promise<SurfaceTokenRegion[]> {
   const detectorCtor = (globalThis as typeof globalThis & { TextDetector?: TextDetectorConstructor }).TextDetector;
   if (!detectorCtor) {
@@ -414,5 +516,40 @@ function applyPdfReplacementRegions(
       color: rgb(0, 0, 0),
       maxWidth: replacement.width
     });
+  }
+}
+
+function getOfficeXmlEntries(zip: JSZip, extension: OfficeExtension): JSZip.JSZipObject[] {
+  const prefix = extension === "docx" ? "word/" : extension === "xlsx" ? "xl/" : "ppt/";
+  return Object.values(zip.files).filter((entry) => !entry.dir && entry.name.startsWith(prefix) && entry.name.endsWith(".xml"));
+}
+
+function getOfficeImageEntries(zip: JSZip): JSZip.JSZipObject[] {
+  return Object.values(zip.files).filter(
+    (entry) => !entry.dir && /\/media\//i.test(entry.name) && /\.(png|jpe?g|webp)$/i.test(entry.name)
+  );
+}
+
+function inferImageContentType(name: string): string | null {
+  if (/\.png$/i.test(name)) {
+    return "image/png";
+  }
+  if (/\.jpe?g$/i.test(name)) {
+    return "image/jpeg";
+  }
+  if (/\.webp$/i.test(name)) {
+    return "image/webp";
+  }
+  return null;
+}
+
+function getOfficeContentType(extension: OfficeExtension): string {
+  switch (extension) {
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case "pptx":
+      return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
   }
 }

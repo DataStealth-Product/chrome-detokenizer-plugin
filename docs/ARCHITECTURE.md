@@ -17,13 +17,26 @@
 - `[<TOKEN-Name-D>]` -> `Daniel`
 
 ## Extension Runtime
-1. Content script scans text nodes, editable controls, open shadow roots, and same-origin iframe documents.
+1. Content script scans text nodes, editable controls, open shadow roots, and extension-accessible frame documents, including injected cross-origin subframes where Chrome allows it.
 2. Regex detections are filtered by the approved token allowlist.
 3. Approved tokens are deduplicated and sent to background worker with minimal payload (`domain`, `tokens`).
 4. Background worker checks in-memory cache and batches unresolved tokens to API.
 5. API mappings are returned to content script and applied with text-safe replacement only.
 6. Popup reads per-tab metrics and controls enabled/disabled state.
 7. Unknown token-shaped values are ignored and remain unchanged.
+
+## Download And Visual Runtime
+1. Supported page clicks on supported download links are intercepted before the browser saves the file.
+2. Background worker creates a sensitive processing job and fetches the source bytes with extension privileges.
+3. Offscreen runtime performs local extraction and OCR for supported file types:
+   - `txt`, `json`
+   - raster images
+   - `pdf`
+   - `docx`, `xlsx`, `pptx`
+4. Only matched tokens are sent to the detokenization API.
+5. Rewritten downloads are emitted back to the browser as detokenized files.
+6. On-screen `img` and `canvas` content is scanned locally and rendered with memory-only overlays.
+7. Sensitive in-memory job state is purged on tab lifecycle events and short TTL expiry.
 
 ## Mock API Role
 - The Node server in `mock-api` is a development stand-in for the production detokenization endpoint.
@@ -34,7 +47,9 @@
 
 ## Security Controls
 - No page body forwarding.
-- No cleartext persistence to disk/local storage.
+- No cleartext persistence to `storage.local`, `storage.sync`, IndexedDB, or repo-tracked files.
+- On-screen detokenized overlays are memory-only and aggressively purged.
+- Detokenized downloaded files are intentionally written to disk for supported file types.
 - Text-only writes (`textContent` / value assignment).
 - Request IDs per detokenization request.
 - TLS required by default (HTTP allowed only for localhost in explicit dev mode).
@@ -48,3 +63,6 @@
 
 ## Future Mapping File Integration
 The approved-token catalog is intentionally isolated so the hardcoded allowlist can be replaced later by a mapping-file parser without redesigning the scan and transport pipeline.
+
+## Scope Statement
+The supported scope is "all supported content the user can see in the browser and all supported downloadable file types the extension can access." Browser-managed restricted surfaces are still out of scope, so the product should not claim universal coverage of every possible browser-visible surface.

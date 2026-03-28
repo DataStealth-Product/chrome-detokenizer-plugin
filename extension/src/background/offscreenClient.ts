@@ -2,6 +2,7 @@ import type { ReplacementRegion, VisualSurfaceDescriptor } from "../shared/contr
 import {
   OffscreenMessageType,
   type ImageArtifactScanResult,
+  type OfficeArtifactScanResult,
   type OffscreenRequest,
   type PdfArtifactScanResult,
   type PdfPageRewriteInstruction,
@@ -66,6 +67,28 @@ export class OffscreenClient {
     const response = await this.sendMessage({
       type: OffscreenMessageType.REWRITE_PDF_ARTIFACT,
       payload: { bytes, pages }
+    });
+
+    return (response as { objectUrl: string }).objectUrl;
+  }
+
+  async scanOfficeArtifact(bytes: ArrayBuffer, extension: "docx" | "xlsx" | "pptx"): Promise<OfficeArtifactScanResult> {
+    const response = await this.sendMessage({
+      type: OffscreenMessageType.SCAN_OFFICE_ARTIFACT,
+      payload: { bytes, extension }
+    });
+
+    return (response as { result: OfficeArtifactScanResult }).result;
+  }
+
+  async rewriteOfficeArtifact(
+    bytes: ArrayBuffer,
+    extension: "docx" | "xlsx" | "pptx",
+    mappings: Record<string, string>
+  ): Promise<string> {
+    const response = await this.sendMessage({
+      type: OffscreenMessageType.REWRITE_OFFICE_ARTIFACT,
+      payload: { bytes, extension, mappings }
     });
 
     return (response as { objectUrl: string }).objectUrl;

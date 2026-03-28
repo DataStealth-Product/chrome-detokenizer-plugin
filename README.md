@@ -1,6 +1,6 @@
 # chrome-detokenizer-plugin
 
-Browser extension and local mock API for just-in-time DOM detokenization.
+Browser extension and local mock API for just-in-time detokenization of supported in-browser content and supported downloaded files.
 
 ## Features
 - Manifest V3 extension (background service worker + content script + popup UI)
@@ -11,7 +11,10 @@ Browser extension and local mock API for just-in-time DOM detokenization.
 - Exact-match text replacement (no HTML injection)
 - In-memory cache with TTL (session-only cleartext handling)
 - Visible attribute scanning for `placeholder`, `title`, `alt`, `aria-label`, `aria-description`, and `aria-placeholder`
-- Open shadow DOM and same-origin iframe support
+- Open shadow DOM and cross-origin iframe content-script support where Chrome permits extension injection
+- Visual-surface OCR overlays for supported `img` and `canvas` content the user can see in-page
+- Automatic supported-download detokenization for `txt`, `json`, `pdf`, `docx`, `xlsx`, `pptx`, and common raster image formats
+- Embedded image OCR inside supported Office Open XML files
 - Local mock API with bearer auth-header validation
 
 ## Approved Tokens (Current Phase)
@@ -28,6 +31,8 @@ Unknown token-shaped strings (for example `[<TOKEN-Name-X>]`) are ignored by out
 The extension auto-runs on supported page URLs matched by `<all_urls>`, including regular `http://`, `https://`, and `file://` pages where Chrome allows content scripts to run.
 
 Protected browser surfaces such as `chrome://` pages and other restricted origins remain outside extension reach.
+
+The accurate product claim is: detokenization for all supported visible browser content and supported downloadable file types that the extension can access. It should not be described as literally all browser-visible content, because browser-managed surfaces, DRM/video, and other restricted rendering paths are still outside extension reach.
 
 ## Explicit Non-Scope
 CSS-generated text such as `::before`, `::after`, and other `content:`-driven pseudo-elements is currently out of scope. The extension detokenizes DOM text/value/attribute surfaces it can safely read and rewrite, but it does not rewrite stylesheet-generated strings.

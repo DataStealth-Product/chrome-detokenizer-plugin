@@ -64,7 +64,7 @@ export const RuntimeConfigSchema = z.object({
 });
 export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
 
-export const ArtifactKindSchema = z.enum(["text", "json", "image", "pdf", "visual-surface"]);
+export const ArtifactKindSchema = z.enum(["text", "json", "image", "pdf", "office", "visual-surface"]);
 export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
 
 export const ProcessingJobStatusSchema = z.enum([
