@@ -3,10 +3,9 @@
   "name": "Chrome Detokenizer Plugin",
   "version": "0.1.0",
   "description": "Detects tokenized DOM values and replaces them with authorized cleartext values.",
-  "permissions": ["scripting", "activeTab", "storage", "tabs"],
+  "permissions": ["scripting", "activeTab", "storage", "tabs", "downloads", "offscreen"],
   "host_permissions": [
     "https://*/*",
-    "https://*.sharepoint.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
@@ -17,11 +16,10 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.sharepoint.com/*",
-        "http://localhost/*",
-        "http://127.0.0.1/*"
+        "<all_urls>"
       ],
       "js": ["assets/content.js"],
+      "all_frames": true,
       "run_at": "document_idle"
     }
   ],

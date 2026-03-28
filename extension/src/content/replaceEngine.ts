@@ -1,4 +1,4 @@
-import type { ResolvedOccurrence, TextResolvedOccurrence } from "./types";
+import type { AttributeResolvedOccurrence, ResolvedOccurrence, TextResolvedOccurrence } from "./types";
 
 export class ReplaceEngine {
   applyMappings(occurrences: ResolvedOccurrence[], mappings: Record<string, string>): number {
@@ -15,6 +15,15 @@ export class ReplaceEngine {
 
       if (occurrence.targetType === "input" || occurrence.targetType === "textarea") {
         const changed = this.replaceInFormControl(occurrence.element, occurrence.startOffset, occurrence.endOffset, occurrence.token, safeReplacement);
+        if (changed) {
+          occurrence.element.dataset.detokenized = "true";
+          replacements += 1;
+        }
+        continue;
+      }
+
+      if (occurrence.targetType === "attribute") {
+        const changed = this.replaceInAttribute(occurrence, safeReplacement);
         if (changed) {
           occurrence.element.dataset.detokenized = "true";
           replacements += 1;
@@ -54,6 +63,28 @@ export class ReplaceEngine {
     }
 
     element.value = `${currentValue.slice(0, start)}${replacement}${currentValue.slice(end)}`;
+    return true;
+  }
+
+  private replaceInAttribute(occurrence: AttributeResolvedOccurrence, replacement: string): boolean {
+    if (!occurrence.element.isConnected) {
+      return false;
+    }
+
+    const currentValue = occurrence.element.getAttribute(occurrence.attributeName);
+    if (currentValue === null) {
+      return false;
+    }
+
+    const candidate = currentValue.slice(occurrence.startOffset, occurrence.endOffset);
+    if (candidate !== occurrence.token) {
+      return false;
+    }
+
+    occurrence.element.setAttribute(
+      occurrence.attributeName,
+      `${currentValue.slice(0, occurrence.startOffset)}${replacement}${currentValue.slice(occurrence.endOffset)}`
+    );
     return true;
   }
 
@@ -111,7 +142,7 @@ function compareOccurrencesDescending(a: ResolvedOccurrence, b: ResolvedOccurren
 }
 
 function getAnchorNode(occurrence: ResolvedOccurrence): Node {
-  if (occurrence.targetType === "input" || occurrence.targetType === "textarea") {
+  if (occurrence.targetType === "input" || occurrence.targetType === "textarea" || occurrence.targetType === "attribute") {
     return occurrence.element;
   }
 

@@ -35,16 +35,17 @@ If build succeeds, `extension/dist/assets/content.js` has been verified as class
 4. Select `extension/dist`.
 
 ## Target Sites
-The extension is scoped to:
-- `https://*.sharepoint.com/*`
-- `http://localhost/*`
-- `http://127.0.0.1/*`
+The extension is scoped to supported page URLs matched by `<all_urls>`, including regular `http://`, `https://`, and `file://` pages where Chrome permits injection.
+
+Protected browser pages such as `chrome://` still cannot be instrumented by the extension.
 
 ## Approved Tokens (Current Phase)
 Only these tokens are sent and replaced:
 - `[<TOKEN-Name-J>]` -> `James`
 - `[<TOKEN-Name-M>]` -> `Marc`
 - `[<TOKEN-Name-E>]` -> `Ed`
+- `[<TOKEN-Name-JM>]` -> `Jay`
+- `[<TOKEN-Name-D>]` -> `Daniel`
 
 Unknown token-like values remain unchanged.
 

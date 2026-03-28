@@ -4,8 +4,7 @@ import { collectMatchRanges, type TokenPatternProvider } from "./tokenPatternPro
 import type { ResolvedDetectionResult, ResolvedOccurrence, TextSegment } from "./types";
 
 export class ScanEngine {
-  private readonly snapshotByNode = new WeakMap<Node, string>();
-  private readonly processedNodes = new WeakSet<Node>();
+  private readonly snapshotsByNode = new WeakMap<Node, Map<string, string>>();
 
   constructor(private readonly patternProvider: TokenPatternProvider) {}
 
@@ -31,7 +30,8 @@ export class ScanEngine {
       targetType: occurrence.targetType,
       nodePath: occurrence.nodePath,
       startOffset: occurrence.startOffset,
-      endOffset: occurrence.endOffset
+      endOffset: occurrence.endOffset,
+      ...(occurrence.targetType === "attribute" ? { attributeName: occurrence.attributeName } : {})
     }));
   }
 
@@ -39,7 +39,7 @@ export class ScanEngine {
     const roots = new Set<Node>();
 
     for (const candidate of rawRoots) {
-      if (candidate.nodeType === Node.TEXT_NODE && candidate.parentNode) {
+      if (isTextNode(candidate) && candidate.parentNode) {
         roots.add(candidate.parentNode);
       } else {
         roots.add(candidate);
@@ -50,7 +50,7 @@ export class ScanEngine {
   }
 
   private isProcessableRoot(node: Node): boolean {
-    if (node instanceof Document || node instanceof Element || node instanceof ShadowRoot || node instanceof DocumentFragment) {
+    if (isDocumentNode(node) || isElementNode(node) || isDocumentFragmentNode(node)) {
       return true;
     }
 
@@ -63,12 +63,12 @@ export class ScanEngine {
     tokens: Set<string>,
     occurrences: ResolvedOccurrence[]
   ): void {
-    if (node instanceof Document) {
+    if (isDocumentNode(node)) {
       this.scanContainer(node, visitedContainers, tokens, occurrences);
       return;
     }
 
-    if (node instanceof Element || node instanceof ShadowRoot || node instanceof DocumentFragment) {
+    if (isElementNode(node) || isDocumentFragmentNode(node)) {
       this.scanContainer(node, visitedContainers, tokens, occurrences);
     }
   }
@@ -85,17 +85,15 @@ export class ScanEngine {
 
     visitedContainers.add(container);
 
-    if (container instanceof Element) {
+    if (isElementNode(container)) {
       if (isExcludedElement(container)) {
         return;
       }
 
+      this.scanVisibleAttributes(container, tokens, occurrences);
       this.scanEditableElement(container, tokens, occurrences);
       if (container.shadowRoot) {
         this.scanContainer(container.shadowRoot, visitedContainers, tokens, occurrences);
-      }
-      if (container instanceof HTMLIFrameElement) {
-        this.scanIFrame(container, visitedContainers, tokens, occurrences);
       }
     }
 
@@ -103,38 +101,14 @@ export class ScanEngine {
     this.scanAdjacentTextNodeSequences(childNodes, tokens, occurrences);
 
     for (const child of childNodes) {
-      if (child instanceof Element || child instanceof ShadowRoot || child instanceof DocumentFragment) {
+      if (isElementNode(child) || isDocumentFragmentNode(child)) {
         this.scanContainer(child, visitedContainers, tokens, occurrences);
       }
     }
   }
 
-  private scanIFrame(
-    iframe: HTMLIFrameElement,
-    visitedContainers: WeakSet<Node>,
-    tokens: Set<string>,
-    occurrences: ResolvedOccurrence[]
-  ): void {
-    try {
-      const frameDocument = iframe.contentDocument;
-      if (!frameDocument) {
-        return;
-      }
-
-      const currentOrigin = window.location.origin;
-      const frameOrigin = frameDocument.location.origin;
-      if (frameOrigin !== currentOrigin) {
-        return;
-      }
-
-      this.scanContainer(frameDocument, visitedContainers, tokens, occurrences);
-    } catch {
-      // Cross-origin frame access is intentionally ignored.
-    }
-  }
-
   private scanEditableElement(element: Element, tokens: Set<string>, occurrences: ResolvedOccurrence[]): void {
-    if (element instanceof HTMLInputElement) {
+    if (isInputElement(element)) {
       if (element.type.toLowerCase() === "password") {
         return;
       }
@@ -143,7 +117,7 @@ export class ScanEngine {
       return;
     }
 
-    if (element instanceof HTMLTextAreaElement) {
+    if (isTextAreaElement(element)) {
       this.scanFormControlValue(element, "textarea", tokens, occurrences);
     }
   }
@@ -155,12 +129,13 @@ export class ScanEngine {
     occurrences: ResolvedOccurrence[]
   ): void {
     const value = element.value;
-    if (this.shouldSkipNode(element, value)) {
+    const surfaceKey = `${targetType}-value`;
+    if (this.shouldSkipSurface(element, surfaceKey, value)) {
       return;
     }
 
     if (!value.includes(TOKEN_HINT_PREFIX)) {
-      this.trackNodeSnapshot(element, value);
+      this.trackSurfaceSnapshot(element, surfaceKey, value);
       return;
     }
 
@@ -177,7 +152,42 @@ export class ScanEngine {
       });
     }
 
-    this.trackNodeSnapshot(element, value);
+    this.trackSurfaceSnapshot(element, surfaceKey, value);
+  }
+
+  private scanVisibleAttributes(element: Element, tokens: Set<string>, occurrences: ResolvedOccurrence[]): void {
+    for (const attributeName of VISIBLE_TEXT_ATTRIBUTE_NAMES) {
+      const value = element.getAttribute(attributeName);
+      if (value === null) {
+        continue;
+      }
+
+      const surfaceKey = `attribute:${attributeName}`;
+      if (this.shouldSkipSurface(element, surfaceKey, value)) {
+        continue;
+      }
+
+      if (!value.includes(TOKEN_HINT_PREFIX)) {
+        this.trackSurfaceSnapshot(element, surfaceKey, value);
+        continue;
+      }
+
+      const ranges = collectMatchRanges(value, this.patternProvider);
+      for (const range of ranges) {
+        tokens.add(range.token);
+        occurrences.push({
+          token: range.token,
+          targetType: "attribute",
+          attributeName,
+          nodePath: getNodePath(element),
+          startOffset: range.start,
+          endOffset: range.end,
+          element
+        });
+      }
+
+      this.trackSurfaceSnapshot(element, surfaceKey, value);
+    }
   }
 
   private scanAdjacentTextNodeSequences(childNodes: Node[], tokens: Set<string>, occurrences: ResolvedOccurrence[]): void {
@@ -191,14 +201,30 @@ export class ScanEngine {
     };
 
     for (const node of childNodes) {
-      if (node instanceof Text) {
+      if (isTextNode(node)) {
         pending.push(node);
+      } else if (isElementNode(node) && isTransparentTextFlowElement(node)) {
+        this.collectTransparentTextNodes(node, pending);
       } else {
         flush();
       }
     }
 
     flush();
+  }
+
+  private collectTransparentTextNodes(element: Element, pending: Text[]): void {
+    if (isExcludedElement(element) || isInputElement(element) || isTextAreaElement(element) || isIFrameElement(element)) {
+      return;
+    }
+
+    for (const child of Array.from(element.childNodes)) {
+      if (isTextNode(child)) {
+        pending.push(child);
+      } else if (isElementNode(child) && isTransparentTextFlowElement(child)) {
+        this.collectTransparentTextNodes(child, pending);
+      }
+    }
   }
 
   private scanTextSequence(textNodes: Text[], tokens: Set<string>, occurrences: ResolvedOccurrence[]): void {
@@ -277,31 +303,46 @@ export class ScanEngine {
       return true;
     }
 
-    if (!textNodes.every((node) => this.processedNodes.has(node))) {
+    if (!textNodes.every((node) => this.hasSurfaceSnapshot(node, TEXT_SURFACE_KEY))) {
       return false;
     }
 
-    const previous = textNodes.map((node) => this.snapshotByNode.get(node) ?? "").join("");
+    const previous = textNodes.map((node) => this.getSurfaceSnapshot(node, TEXT_SURFACE_KEY) ?? "").join("");
     return previous === combinedValue;
   }
 
-  private shouldSkipNode(node: Node, currentValue: string): boolean {
-    if (!this.processedNodes.has(node)) {
-      return false;
-    }
-
-    return this.snapshotByNode.get(node) === currentValue;
+  private shouldSkipSurface(node: Node, surfaceKey: string, currentValue: string): boolean {
+    return this.getSurfaceSnapshot(node, surfaceKey) === currentValue;
   }
 
   private trackTextSequence(textNodes: Text[]): void {
     for (const node of textNodes) {
-      this.trackNodeSnapshot(node, node.data);
+      this.trackSurfaceSnapshot(node, TEXT_SURFACE_KEY, node.data);
     }
   }
 
-  private trackNodeSnapshot(node: Node, value: string): void {
-    this.snapshotByNode.set(node, value);
-    this.processedNodes.add(node);
+  private trackSurfaceSnapshot(node: Node, surfaceKey: string, value: string): void {
+    const snapshots = this.ensureSnapshots(node);
+    snapshots.set(surfaceKey, value);
+  }
+
+  private hasSurfaceSnapshot(node: Node, surfaceKey: string): boolean {
+    return this.snapshotsByNode.get(node)?.has(surfaceKey) ?? false;
+  }
+
+  private getSurfaceSnapshot(node: Node, surfaceKey: string): string | undefined {
+    return this.snapshotsByNode.get(node)?.get(surfaceKey);
+  }
+
+  private ensureSnapshots(node: Node): Map<string, string> {
+    const existing = this.snapshotsByNode.get(node);
+    if (existing) {
+      return existing;
+    }
+
+    const created = new Map<string, string>();
+    this.snapshotsByNode.set(node, created);
+    return created;
   }
 }
 
@@ -315,13 +356,13 @@ export function getNodePath(node: Node): string {
     const index = siblings.indexOf(current);
     segments.push(String(index));
 
-    if (parentNode instanceof ShadowRoot) {
+    if (isShadowRootNode(parentNode)) {
       segments.push("shadow-root");
       current = parentNode.host;
       continue;
     }
 
-    if (parentNode instanceof Document) {
+    if (isDocumentNode(parentNode)) {
       segments.push("document");
       break;
     }
@@ -333,7 +374,74 @@ export function getNodePath(node: Node): string {
 }
 
 const EXCLUDED_CONTAINER_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+const VISIBLE_TEXT_ATTRIBUTE_NAMES = ["placeholder", "title", "alt", "aria-label", "aria-description", "aria-placeholder"] as const;
+const TRANSPARENT_TEXT_FLOW_TAGS = new Set([
+  "A",
+  "ABBR",
+  "B",
+  "BDI",
+  "BDO",
+  "CITE",
+  "CODE",
+  "DATA",
+  "DEL",
+  "DFN",
+  "EM",
+  "I",
+  "INS",
+  "KBD",
+  "LABEL",
+  "MARK",
+  "Q",
+  "S",
+  "SAMP",
+  "SMALL",
+  "SPAN",
+  "STRONG",
+  "SUB",
+  "SUP",
+  "TIME",
+  "U",
+  "VAR"
+]);
+const TEXT_SURFACE_KEY = "text";
 
 function isExcludedElement(element: Element): boolean {
   return EXCLUDED_CONTAINER_TAGS.has(element.tagName);
+}
+
+function isTransparentTextFlowElement(element: Element): boolean {
+  return TRANSPARENT_TEXT_FLOW_TAGS.has(element.tagName);
+}
+
+function isDocumentNode(node: Node | null | undefined): node is Document {
+  return node?.nodeType === Node.DOCUMENT_NODE;
+}
+
+function isDocumentFragmentNode(node: Node | null | undefined): node is DocumentFragment {
+  return node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE;
+}
+
+function isShadowRootNode(node: Node | null | undefined): node is ShadowRoot {
+  return isDocumentFragmentNode(node) && "host" in node;
+}
+
+function isElementNode(node: Node | null | undefined): node is Element {
+  return node?.nodeType === Node.ELEMENT_NODE;
+}
+
+function isTextNode(node: Node | null | undefined): node is Text {
+  return node?.nodeType === Node.TEXT_NODE;
+}
+
+function isInputElement(element: Element | null | undefined): element is HTMLInputElement {
+  return element?.tagName === "INPUT";
+}
+
+function isTextAreaElement(element: Element | null | undefined): element is HTMLTextAreaElement {
+  return element?.tagName === "TEXTAREA";
+}
+
+function isIFrameElement(element: Element | null | undefined): element is HTMLIFrameElement {
+  return element?.tagName === "IFRAME";
 }

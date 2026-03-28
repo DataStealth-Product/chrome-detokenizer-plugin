@@ -1,10 +1,15 @@
-import type { DetokenizeMetrics, PopupStatusResponse } from "../shared/contracts";
+import type { DetokenizeMetrics, PopupStatusResponse, RuntimeConfig } from "../shared/contracts";
 
 interface MutableTabState {
   enabled: boolean;
+  crossOriginIframesEnabled: boolean;
+  visualOcrEnabled: boolean;
+  automaticDownloadsEnabled: boolean;
+  activeSensitiveJobsCount: number;
   metrics: DetokenizeMetrics;
   requestCount: number;
   totalLatencyMs: number;
+  lastPurgeReason?: string;
   lastError?: string;
 }
 
@@ -22,14 +27,52 @@ export class TabStateStore {
     return this.ensure(tabId).enabled;
   }
 
+  getRuntimeConfig(tabId: number): RuntimeConfig {
+    const state = this.ensure(tabId);
+    return {
+      enabled: state.enabled,
+      crossOriginIframesEnabled: state.crossOriginIframesEnabled,
+      visualOcrEnabled: state.visualOcrEnabled,
+      automaticDownloadsEnabled: state.automaticDownloadsEnabled
+    };
+  }
+
   setEnabled(tabId: number, enabled: boolean): PopupStatusResponse {
     const state = this.ensure(tabId);
     state.enabled = enabled;
     return this.toResponse(state);
   }
 
+  setCrossOriginIframesEnabled(tabId: number, enabled: boolean): PopupStatusResponse {
+    const state = this.ensure(tabId);
+    state.crossOriginIframesEnabled = enabled;
+    return this.toResponse(state);
+  }
+
+  setVisualOcrEnabled(tabId: number, enabled: boolean): PopupStatusResponse {
+    const state = this.ensure(tabId);
+    state.visualOcrEnabled = enabled;
+    return this.toResponse(state);
+  }
+
+  setAutomaticDownloadsEnabled(tabId: number, enabled: boolean): PopupStatusResponse {
+    const state = this.ensure(tabId);
+    state.automaticDownloadsEnabled = enabled;
+    return this.toResponse(state);
+  }
+
   getStatus(tabId: number): PopupStatusResponse {
     return this.toResponse(this.ensure(tabId));
+  }
+
+  setActiveSensitiveJobsCount(tabId: number, count: number): void {
+    const state = this.ensure(tabId);
+    state.activeSensitiveJobsCount = Math.max(0, count);
+  }
+
+  setLastPurgeReason(tabId: number, reason?: string): void {
+    const state = this.ensure(tabId);
+    state.lastPurgeReason = reason;
   }
 
   recordDetected(tabId: number, count: number): void {
@@ -72,6 +115,10 @@ export class TabStateStore {
 
     const created: MutableTabState = {
       enabled: true,
+      crossOriginIframesEnabled: true,
+      visualOcrEnabled: true,
+      automaticDownloadsEnabled: true,
+      activeSensitiveJobsCount: 0,
       metrics: { ...DEFAULT_METRICS },
       requestCount: 0,
       totalLatencyMs: 0
@@ -83,6 +130,11 @@ export class TabStateStore {
   private toResponse(state: MutableTabState): PopupStatusResponse {
     return {
       enabled: state.enabled,
+      crossOriginIframesEnabled: state.crossOriginIframesEnabled,
+      visualOcrEnabled: state.visualOcrEnabled,
+      automaticDownloadsEnabled: state.automaticDownloadsEnabled,
+      activeSensitiveJobsCount: state.activeSensitiveJobsCount,
+      ...(state.lastPurgeReason ? { lastPurgeReason: state.lastPurgeReason } : {}),
       metrics: { ...state.metrics },
       ...(state.lastError ? { lastError: state.lastError } : {})
     };

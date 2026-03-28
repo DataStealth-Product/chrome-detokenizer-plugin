@@ -4,11 +4,13 @@ Browser extension and local mock API for just-in-time DOM detokenization.
 
 ## Features
 - Manifest V3 extension (background service worker + content script + popup UI)
-- SharePoint 365 targeting (`https://*.sharepoint.com/*`) with localhost dev support
+- Broad page support across standard web pages where Chrome permits content scripts
 - Incremental token detection with `MutationObserver`
+- Rich-text token detection across common inline formatting markup
 - Token-only API payloads (`domain`, `tokens[]`)
 - Exact-match text replacement (no HTML injection)
 - In-memory cache with TTL (session-only cleartext handling)
+- Visible attribute scanning for `placeholder`, `title`, `alt`, `aria-label`, `aria-description`, and `aria-placeholder`
 - Open shadow DOM and same-origin iframe support
 - Local mock API with bearer auth-header validation
 
@@ -17,14 +19,18 @@ Only the following token set is sent to backend and replaced in-page:
 - `[<TOKEN-Name-J>]` -> `James`
 - `[<TOKEN-Name-M>]` -> `Marc`
 - `[<TOKEN-Name-E>]` -> `Ed`
+- `[<TOKEN-Name-JM>]` -> `Jay`
+- `[<TOKEN-Name-D>]` -> `Daniel`
 
 Unknown token-shaped strings (for example `[<TOKEN-Name-X>]`) are ignored by outbound filtering and remain unchanged in the DOM.
 
-## SharePoint Scope
-The extension auto-runs on:
-- `https://*.sharepoint.com/*`
-- `http://localhost/*`
-- `http://127.0.0.1/*`
+## Site Scope
+The extension auto-runs on supported page URLs matched by `<all_urls>`, including regular `http://`, `https://`, and `file://` pages where Chrome allows content scripts to run.
+
+Protected browser surfaces such as `chrome://` pages and other restricted origins remain outside extension reach.
+
+## Explicit Non-Scope
+CSS-generated text such as `::before`, `::after`, and other `content:`-driven pseudo-elements is currently out of scope. The extension detokenizes DOM text/value/attribute surfaces it can safely read and rewrite, but it does not rewrite stylesheet-generated strings.
 
 ## Quick Start
 ```bash
@@ -50,6 +56,7 @@ Use `.env` values (see `.env.example`):
 - `npm run test:unit`
 - `npm run test:integration`
 - `npm run test:e2e`
+- `npm run test:coverage`
 - `npm run test`
 
 ## Local Mock Fallback

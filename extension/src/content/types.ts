@@ -16,7 +16,13 @@ export interface InputResolvedOccurrence extends TokenOccurrence {
   element: HTMLInputElement | HTMLTextAreaElement;
 }
 
-export type ResolvedOccurrence = TextResolvedOccurrence | InputResolvedOccurrence;
+export interface AttributeResolvedOccurrence extends TokenOccurrence {
+  targetType: "attribute";
+  attributeName: string;
+  element: Element;
+}
+
+export type ResolvedOccurrence = TextResolvedOccurrence | InputResolvedOccurrence | AttributeResolvedOccurrence;
 
 export interface ResolvedDetectionResult {
   tokens: string[];
@@ -30,11 +36,11 @@ export interface MatchRange {
 }
 
 export function targetTypeFromElement(element: Element): TargetType {
-  if (element instanceof HTMLTextAreaElement) {
+  if (element.tagName === "TEXTAREA") {
     return "textarea";
   }
 
-  if (element instanceof HTMLInputElement) {
+  if (element.tagName === "INPUT") {
     return "input";
   }
 

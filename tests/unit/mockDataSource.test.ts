@@ -7,13 +7,17 @@ describe("mock data source", () => {
     const result = source.resolve([
       "[<TOKEN-Name-J>]",
       "[<TOKEN-Name-M>]",
-      "[<TOKEN-Name-E>]"
+      "[<TOKEN-Name-E>]",
+      "[<TOKEN-Name-JM>]",
+      "[<TOKEN-Name-D>]"
     ]);
 
     expect(result).toEqual({
       "[<TOKEN-Name-J>]": "James",
       "[<TOKEN-Name-M>]": "Marc",
-      "[<TOKEN-Name-E>]": "Ed"
+      "[<TOKEN-Name-E>]": "Ed",
+      "[<TOKEN-Name-JM>]": "Jay",
+      "[<TOKEN-Name-D>]": "Daniel"
     });
   });
 

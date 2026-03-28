@@ -3,7 +3,6 @@ export type RootMutationHandler = (roots: Node[]) => void;
 export class IncrementalObserver {
   private readonly observers = new Map<Node, MutationObserver>();
   private readonly documentsWithInputListeners = new WeakSet<Document>();
-  private readonly watchedFrames = new WeakSet<HTMLIFrameElement>();
   private readonly queuedRoots = new Set<Node>();
   private flushTimer: number | undefined;
   private suppressionDepth = 0;
@@ -84,7 +83,7 @@ export class IncrementalObserver {
       if (this.suppressionDepth > 0) {
         return;
       }
-      if (event.target instanceof Node) {
+      if (isNodeLike(event.target)) {
         this.queueRoot(event.target);
       }
     };
@@ -97,7 +96,7 @@ export class IncrementalObserver {
   private discoverNestedRoots(root: ParentNode): void {
     this.attachForNode(root as unknown as Node);
 
-    const elements = root instanceof Document ? root.querySelectorAll("*") : (root as Element | ShadowRoot).querySelectorAll("*");
+    const elements = isDocumentNode(root as unknown as Node) ? root.querySelectorAll("*") : (root as Element | ShadowRoot).querySelectorAll("*");
 
     for (const element of Array.from(elements)) {
       this.attachForNode(element);
@@ -105,46 +104,15 @@ export class IncrementalObserver {
   }
 
   private attachForNode(node: Node): void {
-    if (!(node instanceof Element) && !(node instanceof Document) && !(node instanceof ShadowRoot)) {
+    if (!isElementNode(node) && !isDocumentNode(node) && !isShadowRootNode(node)) {
       return;
     }
 
-    if (node instanceof Element && node.shadowRoot) {
+    if (isElementNode(node) && node.shadowRoot) {
       this.observeRoot(node.shadowRoot);
       this.discoverNestedRoots(node.shadowRoot);
     }
 
-    if (node instanceof HTMLIFrameElement) {
-      this.observeIFrame(node);
-    }
-  }
-
-  private observeIFrame(iframe: HTMLIFrameElement): void {
-    if (this.watchedFrames.has(iframe)) {
-      return;
-    }
-
-    const attach = (): void => {
-      try {
-        const frameDocument = iframe.contentDocument;
-        if (!frameDocument) {
-          return;
-        }
-
-        if (frameDocument.location.origin !== window.location.origin) {
-          return;
-        }
-
-        this.observeDocument(frameDocument);
-        this.queueRoot(frameDocument);
-      } catch {
-        // Ignore cross-origin frame access.
-      }
-    };
-
-    iframe.addEventListener("load", attach);
-    attach();
-    this.watchedFrames.add(iframe);
   }
 
   private scheduleFlush(): void {
@@ -162,4 +130,20 @@ export class IncrementalObserver {
       }
     }, this.debounceMs);
   }
+}
+
+function isDocumentNode(node: Node | null | undefined): node is Document {
+  return node?.nodeType === Node.DOCUMENT_NODE;
+}
+
+function isElementNode(node: Node | null | undefined): node is Element {
+  return node?.nodeType === Node.ELEMENT_NODE;
+}
+
+function isShadowRootNode(node: Node | null | undefined): node is ShadowRoot {
+  return node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in node;
+}
+
+function isNodeLike(value: unknown): value is Node {
+  return typeof value === "object" && value !== null && "nodeType" in value;
 }

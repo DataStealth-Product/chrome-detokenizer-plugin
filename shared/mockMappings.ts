@@ -1,7 +1,9 @@
 export const DEFAULT_MOCK_TOKEN_MAPPINGS: Readonly<Record<string, string>> = Object.freeze({
   "[<TOKEN-Name-J>]": "James",
   "[<TOKEN-Name-M>]": "Marc",
-  "[<TOKEN-Name-E>]": "Ed"
+  "[<TOKEN-Name-E>]": "Ed",
+  "[<TOKEN-Name-JM>]": "Jay",
+  "[<TOKEN-Name-D>]": "Daniel"
 });
 
 export function resolveMockMappings(tokens: string[]): Record<string, string> {

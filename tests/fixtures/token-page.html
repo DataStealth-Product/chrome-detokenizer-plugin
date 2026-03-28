@@ -10,11 +10,25 @@
       <p>Manager: [&lt;TOKEN-Name-M&gt;]</p>
       <p>Director: [&lt;TOKEN-Name-E&gt;]</p>
       <p>Unknown: [&lt;TOKEN-Name-X&gt;]</p>
-      <input value="[&lt;TOKEN-Name-J&gt;] [&lt;TOKEN-Name-M&gt;]" />
+      <p id="rich-token"><span>[&lt;TOKEN-</span><strong>Name-D&gt;]</strong></p>
+      <input id="value-token" value="[&lt;TOKEN-Name-J&gt;] [&lt;TOKEN-Name-M&gt;]" />
+      <input id="placeholder-token" placeholder="Lookup [&lt;TOKEN-Name-JM&gt;]" />
       <textarea>[&lt;TOKEN-Name-E&gt;] [&lt;TOKEN-Name-X&gt;]</textarea>
       <div contenteditable="true">[&lt;TOKEN-Name-M&gt;] [&lt;TOKEN-Name-X&gt;]</div>
+      <img id="profile-image" alt="Profile [&lt;TOKEN-Name-D&gt;]" title="Lead [&lt;TOKEN-Name-J&gt;]" />
+      <div id="shadow-host"></div>
+      <iframe id="same-origin-frame" src="/iframe-token-page.html"></iframe>
     </main>
     <script>
+      const shadowHost = document.getElementById("shadow-host");
+      const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+      const shadowWrapper = document.createElement("section");
+      shadowWrapper.innerHTML = `
+        <p id="shadow-text">Shadow [&lt;TOKEN-Name-M&gt;]</p>
+        <span id="shadow-title" title="Shadow title [&lt;TOKEN-Name-E&gt;]">ready</span>
+      `;
+      shadowRoot.appendChild(shadowWrapper);
+
       setTimeout(() => {
         const node = document.createElement("p");
         node.textContent = "Async token: [<TOKEN-Name-E>]";

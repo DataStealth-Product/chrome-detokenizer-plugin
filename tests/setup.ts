@@ -1,5 +1,13 @@
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 
 afterEach(() => {
-  // Keep test isolation strict for DOM and timers.
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+
+  if (typeof document !== "undefined") {
+    document.head.replaceChildren();
+    document.body.replaceChildren();
+  }
 });

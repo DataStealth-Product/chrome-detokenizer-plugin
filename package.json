@@ -15,12 +15,15 @@
     "dev:oob": "npm run build:extension && npm run dev:mock-api",
     "test:unit": "vitest run tests/unit --config vitest.config.ts",
     "test:integration": "vitest run tests/integration --config vitest.config.ts",
-    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:e2e": "VITE_DETOKENIZER_API_URL=http://127.0.0.1:8877/detokenize VITE_ALLOW_HTTP_DEV=true npm run build:extension && playwright test -c tests/e2e/playwright.config.ts",
     "test": "npm run test:unit && npm run test:integration"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.5.207",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -30,6 +33,7 @@
     "@types/express": "^5.0.3",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.18.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "jsdom": "^22.1.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
