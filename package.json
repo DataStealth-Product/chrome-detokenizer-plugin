@@ -12,7 +12,8 @@
     "package:extension": "npm run build:extension",
     "dev:mock-api": "node --import tsx mock-api/src/index.ts",
     "dev:mock-api:watch": "tsx watch mock-api/src/index.ts",
-    "dev:oob": "npm run build:extension && npm run dev:mock-api",
+    "dev:fixtures": "node tests/e2e/fixture-server.mjs",
+    "dev:oob": "npm run build:extension && concurrently -k -n API,FIXTURE -c blue,green \"npm:dev:mock-api\" \"npm:dev:fixtures\"",
     "test:unit": "vitest run tests/unit --config vitest.config.ts",
     "test:integration": "vitest run tests/integration --config vitest.config.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
@@ -25,6 +26,7 @@
     "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.5.207",
+    "tesseract.js": "^7.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

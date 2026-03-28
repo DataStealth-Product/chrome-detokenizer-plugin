@@ -13,6 +13,7 @@ function buildPopupDom() {
       <input id="automatic-downloads" type="checkbox" />
     </label>
     <button id="clear-sensitive-state" type="button"></button>
+    <div id="visual-ocr-warning" data-visible="false"></div>
     <div id="status"></div>
     <div id="metrics"></div>
   `;
@@ -151,5 +152,31 @@ describe("popup entrypoint", () => {
     await vi.waitFor(() => {
       expect(document.querySelector("#status")?.textContent).toBe("Status error: boom");
     });
+  });
+
+  it("shows a visible fallback when visual OCR is unavailable", async () => {
+    vi.mocked(chrome.tabs.query).mockResolvedValue([{ id: 33 }]);
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({
+      enabled: true,
+      crossOriginIframesEnabled: true,
+      visualOcrEnabled: true,
+      automaticDownloadsEnabled: true,
+      activeSensitiveJobsCount: 0,
+      metrics: {
+        detectedCount: 0,
+        detokenizedCount: 0,
+        errorCount: 1,
+        avgLatencyMs: 0
+      },
+      lastError: "text_detector_unavailable"
+    });
+
+    await import("../../extension/src/popup/main");
+    await vi.waitFor(() => {
+      expect(document.querySelector("#status")?.textContent).toBe("Visual OCR unavailable on this browser.");
+    });
+
+    expect(document.querySelector("#visual-ocr-warning")?.getAttribute("data-visible")).toBe("true");
+    expect(document.querySelector("#visual-ocr-warning")?.textContent).toContain("image and canvas overlays cannot run");
   });
 });

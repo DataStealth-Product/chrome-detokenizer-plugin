@@ -1,41 +1,46 @@
 # chrome-detokenizer-plugin
 
-Browser extension and local mock API for just-in-time detokenization of supported in-browser content and supported downloaded files.
+Manifest V3 browser extension plus local mock API for just-in-time detokenization of supported browser content, supported visual surfaces, and supported downloaded files.
 
-## Features
-- Manifest V3 extension (background service worker + content script + popup UI)
-- Broad page support across standard web pages where Chrome permits content scripts
-- Incremental token detection with `MutationObserver`
-- Rich-text token detection across common inline formatting markup
-- Token-only API payloads (`domain`, `tokens[]`)
-- Exact-match text replacement (no HTML injection)
-- In-memory cache with TTL (session-only cleartext handling)
-- Visible attribute scanning for `placeholder`, `title`, `alt`, `aria-label`, `aria-description`, and `aria-placeholder`
-- Open shadow DOM and cross-origin iframe content-script support where Chrome permits extension injection
-- Visual-surface OCR overlays for supported `img` and `canvas` content the user can see in-page
-- Automatic supported-download detokenization for `txt`, `json`, `pdf`, `docx`, `xlsx`, `pptx`, and common raster image formats
-- Embedded image OCR inside supported Office Open XML files
-- Local mock API with bearer auth-header validation
+## What It Does
+- Detokenizes supported DOM text, editable fields, and selected visible attributes in-place.
+- Rewrites approved tokens only. Unknown token-like strings stay untouched.
+- Scans supported `img` and `canvas` surfaces and paints memory-only overlays for detected replacements.
+- Intercepts supported downloads, detokenizes them in memory, and hands the rewritten file back to Chrome.
+- Exposes a human test gallery page for manual verification across DOM, frames, OCR, and downloads.
 
-## Approved Tokens (Current Phase)
-Only the following token set is sent to backend and replaced in-page:
+## Current Surface Support
+- Text nodes and common rich-text inline splits
+- `input`, `textarea`, and `contenteditable`
+- `placeholder`, `title`, `alt`, `aria-label`, `aria-description`, `aria-placeholder`
+- Open shadow DOM
+- Same-origin frames, plus extension-injected cross-origin frames where Chrome allows it
+- Async DOM mutation after initial render
+- Visual OCR overlays for supported `img` and `canvas`
+- Supported downloads: `txt`, `json`, `png`, `jpg`, `jpeg`, `webp`, `pdf`, `docx`, `xlsx`, `pptx`
+- Embedded raster images inside supported Office Open XML documents
+
+## Approved Tokens
+Only these tokens are sent to the backend and eligible for replacement:
 - `[<TOKEN-Name-J>]` -> `James`
 - `[<TOKEN-Name-M>]` -> `Marc`
 - `[<TOKEN-Name-E>]` -> `Ed`
 - `[<TOKEN-Name-JM>]` -> `Jay`
 - `[<TOKEN-Name-D>]` -> `Daniel`
 
-Unknown token-shaped strings (for example `[<TOKEN-Name-X>]`) are ignored by outbound filtering and remain unchanged in the DOM.
+Unknown token-shaped strings such as `[<TOKEN-Name-X>]` are filtered out before transport and remain unchanged.
 
-## Site Scope
-The extension auto-runs on supported page URLs matched by `<all_urls>`, including regular `http://`, `https://`, and `file://` pages where Chrome allows content scripts to run.
+## Human Test Gallery
+The manual test page is a labeled exhibit gallery designed to stay tokenized at rest with the extension off, then detokenize when the extension is enabled.
 
-Protected browser surfaces such as `chrome://` pages and other restricted origins remain outside extension reach.
+Default local URL:
+- [http://127.0.0.1:4173/human-test.html](http://127.0.0.1:4173/human-test.html)
 
-The accurate product claim is: detokenization for all supported visible browser content and supported downloadable file types that the extension can access. It should not be described as literally all browser-visible content, because browser-managed surfaces, DRM/video, and other restricted rendering paths are still outside extension reach.
-
-## Explicit Non-Scope
-CSS-generated text such as `::before`, `::after`, and other `content:`-driven pseudo-elements is currently out of scope. The extension detokenizes DOM text/value/attribute surfaces it can safely read and rewrite, but it does not rewrite stylesheet-generated strings.
+The gallery includes:
+- DOM token exhibits
+- Embedded token exhibits for shadow DOM, async mutation, and iframe coverage
+- Image token exhibits for PNG, JPG, WEBP, and live canvas OCR
+- Download token exhibits for text, Office, PDF, and raster files
 
 ## Quick Start
 ```bash
@@ -43,13 +48,60 @@ npm install
 npm run dev:oob
 ```
 
-Then load `extension/dist` in `chrome://extensions` via **Load unpacked**.
+Then:
+1. Open `chrome://extensions`
+2. Enable Developer mode
+3. Click **Load unpacked**
+4. Select [extension/dist](/Users/jfuentes/Desktop/Chrome-Detokenizer-Plugin/chrome-detokenizer-plugin/extension/dist)
+5. Open [http://127.0.0.1:4173/human-test.html](http://127.0.0.1:4173/human-test.html)
 
-## Config
-Use `.env` values (see `.env.example`):
+## Popup Controls
+The popup exposes per-tab controls for:
+- `Enabled For Tab`
+- `Cross-Origin Iframes`
+- `Visual OCR Overlays`
+- `Automatic Downloads`
+- `Purge Sensitive State`
+
+The popup also shows per-tab metrics:
+- tokens detected
+- tokens detokenized
+- error count
+- average API latency
+- active sensitive jobs
+
+## Visual OCR Behavior
+Visual OCR now uses a layered approach:
+- native `TextDetector` when available
+- bundled offscreen `tesseract.js` fallback when native OCR is unavailable
+
+Notes:
+- the first visual OCR pass can take longer while the offscreen OCR worker initializes
+- visual overlays are memory-only and purged automatically
+- overlays are “sticky” per surface so partial OCR passes do not cause obvious flicker
+
+## Download Behavior
+- With the extension disabled for a tab, downloads should behave like normal browser downloads.
+- With the extension enabled and `Automatic Downloads` on, supported files are intercepted, detokenized in memory, and re-downloaded through Chrome.
+- If extension-side interception fails, the click falls back to the browser’s native download behavior instead of becoming a no-op.
+
+## Site Scope
+The extension runs on supported page URLs matched by `<all_urls>`, including standard `http://`, `https://`, and `file://` pages where Chrome permits content script injection.
+
+Out of scope:
+- `chrome://` and other protected browser surfaces
+- DRM/video and other browser-managed rendering paths
+- CSS-generated pseudo-element content such as `::before` and `::after`
+
+The accurate product claim is: detokenization for all supported visible browser content and supported downloadable file types that the extension can access.
+
+## Configuration
+Environment variables live in `.env`:
 - `VITE_DETOKENIZER_API_URL`
 - `VITE_DETOKENIZER_AUTH_TOKEN`
 - `VITE_ALLOW_HTTP_DEV`
+
+See [docs/SETUP.md](/Users/jfuentes/Desktop/Chrome-Detokenizer-Plugin/chrome-detokenizer-plugin/docs/SETUP.md) for details.
 
 ## Scripts
 - `npm run dev:extension`
@@ -57,6 +109,7 @@ Use `.env` values (see `.env.example`):
 - `npm run package:extension`
 - `npm run dev:mock-api`
 - `npm run dev:mock-api:watch`
+- `npm run dev:fixtures`
 - `npm run dev:oob`
 - `npm run test:unit`
 - `npm run test:integration`
@@ -65,11 +118,11 @@ Use `.env` values (see `.env.example`):
 - `npm run test`
 
 ## Local Mock Fallback
-If `VITE_DETOKENIZER_API_URL` points to localhost/127.0.0.1 and the mock API is temporarily unreachable, the extension now falls back to the same local token mappings used by the mock API. This keeps detokenization working for tonight's testing while you bring the mock server back up.
+If `VITE_DETOKENIZER_API_URL` points to `localhost` or `127.0.0.1` and the mock API is unavailable, the extension falls back to the same local mappings used by the mock API so development detokenization still works.
 
 ## Docs
-- `docs/ARCHITECTURE.md`
-- `docs/SETUP.md`
+- [docs/SETUP.md](/Users/jfuentes/Desktop/Chrome-Detokenizer-Plugin/chrome-detokenizer-plugin/docs/SETUP.md)
+- [docs/ARCHITECTURE.md](/Users/jfuentes/Desktop/Chrome-Detokenizer-Plugin/chrome-detokenizer-plugin/docs/ARCHITECTURE.md)
 
 ## Next Integration Step
-Token allowlisting is currently hardcoded for this phase. The code is structured so this can be replaced with mapping-file parsing in a later iteration.
+The token allowlist is intentionally isolated for this phase so it can later be replaced with mapping-file ingestion without redesigning the scan and transport pipeline.

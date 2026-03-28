@@ -1,7 +1,9 @@
 import JSZip from "jszip";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
+import { PSM, createWorker } from "tesseract.js";
 import { findApprovedTokenRanges } from "../shared/tokenMatching";
+import { APPROVED_TOKENS } from "../shared/tokenCatalog";
 import type { ReplacementRegion } from "../shared/contracts";
 import {
   OffscreenMessageType,
@@ -27,68 +29,95 @@ interface TextDetectorConstructor {
   };
 }
 
+interface OcrTextCandidate {
+  rawValue: string;
+  bbox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+type TesseractWorker = Awaited<ReturnType<typeof createWorker>>;
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+
+const TESSERACT_WORKER_PATH = chrome.runtime.getURL("vendor/tesseract/worker.min.js");
+const TESSERACT_CORE_PATH = chrome.runtime.getURL("vendor/tesseract-core");
+const TESSERACT_LANG_PATH = chrome.runtime.getURL("vendor/tessdata");
+const TESSERACT_UPSCALE_FACTOR = 3;
+const TESSERACT_WHITELIST = "[]<>-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+let tesseractWorkerPromise: Promise<TesseractWorker> | null = null;
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (!message || typeof message !== "object" || !("type" in message)) {
     return false;
   }
 
-  const request = message as OffscreenRequest;
+  const request = message as { type?: string };
+  if (!Object.values(OffscreenMessageType).includes(request.type as (typeof OffscreenMessageType)[keyof typeof OffscreenMessageType])) {
+    return false;
+  }
+
+  const offscreenRequest = message as OffscreenRequest;
   void (async () => {
-    switch (request.type) {
+    switch (offscreenRequest.type) {
       case OffscreenMessageType.SCAN_VISUAL_SURFACES:
         sendResponse({
           surfaces: await scanVisualSurfaces(
-            request.payload.screenshotDataUrl,
-            request.payload.surfaces,
-            request.payload.devicePixelRatio
+            offscreenRequest.payload.screenshotDataUrl,
+            offscreenRequest.payload.surfaces,
+            offscreenRequest.payload.devicePixelRatio
           )
         });
         return;
       case OffscreenMessageType.SCAN_IMAGE_ARTIFACT:
         sendResponse({
-          result: await scanImageArtifact(request.payload.bytes, request.payload.contentType)
+          result: await scanImageArtifact(offscreenRequest.payload.bytes, offscreenRequest.payload.contentType)
         });
         return;
       case OffscreenMessageType.REWRITE_IMAGE_ARTIFACT:
         sendResponse({
           objectUrl: await rewriteImageArtifact(
-            request.payload.bytes,
-            request.payload.contentType,
-            request.payload.replacements
+            offscreenRequest.payload.bytes,
+            offscreenRequest.payload.contentType,
+            offscreenRequest.payload.replacements
           ),
-          contentType: request.payload.contentType
+          contentType: offscreenRequest.payload.contentType
         });
         return;
       case OffscreenMessageType.SCAN_PDF_ARTIFACT:
         sendResponse({
-          result: await scanPdfArtifact(request.payload.bytes)
+          result: await scanPdfArtifact(offscreenRequest.payload.bytes)
         });
         return;
       case OffscreenMessageType.REWRITE_PDF_ARTIFACT:
         sendResponse({
-          objectUrl: await rewritePdfArtifact(request.payload.bytes, request.payload.pages),
+          objectUrl: await rewritePdfArtifact(offscreenRequest.payload.bytes, offscreenRequest.payload.pages),
           contentType: "application/pdf"
         });
         return;
       case OffscreenMessageType.SCAN_OFFICE_ARTIFACT:
         sendResponse({
-          result: await scanOfficeArtifact(request.payload.bytes, request.payload.extension)
+          result: await scanOfficeArtifact(offscreenRequest.payload.bytes, offscreenRequest.payload.extension)
         });
         return;
       case OffscreenMessageType.REWRITE_OFFICE_ARTIFACT:
         sendResponse({
-          objectUrl: await rewriteOfficeArtifact(request.payload.bytes, request.payload.extension, request.payload.mappings),
-          contentType: getOfficeContentType(request.payload.extension)
+          objectUrl: await rewriteOfficeArtifact(
+            offscreenRequest.payload.bytes,
+            offscreenRequest.payload.extension,
+            offscreenRequest.payload.mappings
+          ),
+          contentType: getOfficeContentType(offscreenRequest.payload.extension)
         });
         return;
       case OffscreenMessageType.REVOKE_OBJECT_URL:
-        URL.revokeObjectURL(request.payload.objectUrl);
+        URL.revokeObjectURL(offscreenRequest.payload.objectUrl);
         sendResponse({ ok: true });
         return;
-      default:
-        sendResponse({ error: "unsupported_offscreen_message" });
     }
   })().catch((error) => {
     const messageText = error instanceof Error ? error.message : "offscreen_processing_failed";
@@ -382,10 +411,22 @@ async function rewriteOfficeArtifact(
 
 async function detectTokenRegions(source: CanvasImageSource, scale: number): Promise<SurfaceTokenRegion[]> {
   const detectorCtor = (globalThis as typeof globalThis & { TextDetector?: TextDetectorConstructor }).TextDetector;
-  if (!detectorCtor) {
-    throw new Error("text_detector_unavailable");
+  if (detectorCtor) {
+    try {
+      return await detectTokenRegionsWithTextDetector(source, scale, detectorCtor);
+    } catch (error) {
+      console.warn("[detokenizer] native TextDetector failed, falling back to Tesseract OCR", error);
+    }
   }
 
+  return detectTokenRegionsWithTesseract(source, scale);
+}
+
+async function detectTokenRegionsWithTextDetector(
+  source: CanvasImageSource,
+  scale: number,
+  detectorCtor: TextDetectorConstructor
+): Promise<SurfaceTokenRegion[]> {
   const detector = new detectorCtor();
   const detections = await detector.detect(source);
   const matches: SurfaceTokenRegion[] = [];
@@ -411,6 +452,284 @@ async function detectTokenRegions(source: CanvasImageSource, scale: number): Pro
   }
 
   return matches;
+}
+
+async function detectTokenRegionsWithTesseract(source: CanvasImageSource, scale: number): Promise<SurfaceTokenRegion[]> {
+  const worker = await getTesseractWorker();
+  const { canvas, coordinateScale } = prepareCanvasForTesseract(source, scale);
+  const {
+    data: { blocks }
+  } = await worker.recognize(canvas, {}, { blocks: true });
+
+  return collectMatchesFromOcrCandidates(collectTesseractCandidates(blocks), coordinateScale);
+}
+
+async function getTesseractWorker(): Promise<TesseractWorker> {
+  if (!tesseractWorkerPromise) {
+    tesseractWorkerPromise = createWorker("eng", 1, {
+      workerPath: TESSERACT_WORKER_PATH,
+      corePath: TESSERACT_CORE_PATH,
+      langPath: TESSERACT_LANG_PATH,
+      workerBlobURL: false,
+      cacheMethod: "readOnly",
+      gzip: true
+    })
+      .then(async (worker) => {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+          tessedit_char_whitelist: TESSERACT_WHITELIST,
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300"
+        });
+        return worker;
+      })
+      .catch((error) => {
+        tesseractWorkerPromise = null;
+        throw error;
+      });
+  }
+
+  return tesseractWorkerPromise;
+}
+
+function prepareCanvasForTesseract(
+  source: CanvasImageSource,
+  scale: number
+): { canvas: HTMLCanvasElement; coordinateScale: number } {
+  const baseCanvas = drawCanvasImageSourceToCanvas(source);
+  const canvas = createCanvas(baseCanvas.width * TESSERACT_UPSCALE_FACTOR, baseCanvas.height * TESSERACT_UPSCALE_FACTOR);
+  const context = require2dContext(canvas);
+  context.imageSmoothingEnabled = true;
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(baseCanvas, 0, 0, canvas.width, canvas.height);
+
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const { data } = image;
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance = 0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2];
+    const nextValue = luminance > 205 ? 255 : 0;
+    data[index] = nextValue;
+    data[index + 1] = nextValue;
+    data[index + 2] = nextValue;
+    data[index + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+
+  return {
+    canvas,
+    coordinateScale: scale / TESSERACT_UPSCALE_FACTOR
+  };
+}
+
+function drawCanvasImageSourceToCanvas(source: CanvasImageSource): HTMLCanvasElement {
+  if (source instanceof HTMLCanvasElement) {
+    return source;
+  }
+
+  const size = getCanvasImageSourceSize(source);
+  const canvas = createCanvas(size.width, size.height);
+  const context = require2dContext(canvas);
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function getCanvasImageSourceSize(source: CanvasImageSource): { width: number; height: number } {
+  if (source instanceof ImageBitmap) {
+    return {
+      width: source.width,
+      height: source.height
+    };
+  }
+
+  if (source instanceof HTMLCanvasElement) {
+    return {
+      width: source.width,
+      height: source.height
+    };
+  }
+
+  if (source instanceof OffscreenCanvas) {
+    return {
+      width: source.width,
+      height: source.height
+    };
+  }
+
+  if (source instanceof HTMLImageElement || source instanceof SVGImageElement || source instanceof HTMLVideoElement) {
+    return {
+      width: source.width,
+      height: source.height
+    };
+  }
+
+  throw new Error("unsupported_canvas_image_source");
+}
+
+function collectTesseractCandidates(blocks: unknown): OcrTextCandidate[] {
+  if (!Array.isArray(blocks)) {
+    return [];
+  }
+
+  const candidates: OcrTextCandidate[] = [];
+  for (const block of blocks) {
+    if (!isOcrBlock(block)) {
+      continue;
+    }
+
+    for (const paragraph of block.paragraphs) {
+      if (!isOcrParagraph(paragraph)) {
+        continue;
+      }
+
+      for (const line of paragraph.lines) {
+        if (!isOcrLine(line)) {
+          continue;
+        }
+
+        candidates.push({
+          rawValue: line.text.trim(),
+          bbox: toBox(line.bbox)
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function collectMatchesFromOcrCandidates(candidates: OcrTextCandidate[], scale: number): SurfaceTokenRegion[] {
+  const matches: SurfaceTokenRegion[] = [];
+
+  for (const candidate of candidates) {
+    const ranges = findApprovedTokenRangesForOcr(candidate.rawValue);
+    for (const range of ranges) {
+      const totalChars = Math.max(candidate.rawValue.length, 1);
+      matches.push({
+        token: range.token,
+        left: (candidate.bbox.x + (candidate.bbox.width * range.start) / totalChars) * scale,
+        top: candidate.bbox.y * scale,
+        width: (candidate.bbox.width * (range.end - range.start)) / totalChars * scale,
+        height: candidate.bbox.height * scale
+      });
+    }
+  }
+
+  return dedupeSurfaceTokenRegions(matches);
+}
+
+function findApprovedTokenRangesForOcr(content: string): Array<{ token: string; start: number; end: number }> {
+  const exactRanges = findApprovedTokenRanges(content);
+  if (exactRanges.length > 0) {
+    return exactRanges;
+  }
+
+  const normalized = normalizeOcrContent(content);
+  if (normalized.content.length === 0) {
+    return [];
+  }
+
+  const haystack = normalized.content.toLowerCase();
+  const matches: Array<{ token: string; start: number; end: number }> = [];
+
+  for (const token of APPROVED_TOKENS) {
+    const needle = token.toLowerCase();
+    let searchIndex = 0;
+    while (searchIndex < haystack.length) {
+      const matchIndex = haystack.indexOf(needle, searchIndex);
+      if (matchIndex === -1) {
+        break;
+      }
+
+      const start = normalized.originalIndexes[matchIndex];
+      const lastIndex = normalized.originalIndexes[matchIndex + needle.length - 1];
+      if (start !== undefined && lastIndex !== undefined) {
+        matches.push({
+          token,
+          start,
+          end: lastIndex + 1
+        });
+      }
+
+      searchIndex = matchIndex + needle.length;
+    }
+  }
+
+  return matches;
+}
+
+function normalizeOcrContent(content: string): { content: string; originalIndexes: number[] } {
+  const characters: string[] = [];
+  const originalIndexes: number[] = [];
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+    if (/\s/.test(character)) {
+      continue;
+    }
+
+    characters.push(character);
+    originalIndexes.push(index);
+  }
+
+  return {
+    content: characters.join(""),
+    originalIndexes
+  };
+}
+
+function dedupeSurfaceTokenRegions(matches: SurfaceTokenRegion[]): SurfaceTokenRegion[] {
+  const seen = new Set<string>();
+  const unique: SurfaceTokenRegion[] = [];
+
+  for (const match of matches) {
+    const key = [
+      match.token,
+      Math.round(match.left),
+      Math.round(match.top),
+      Math.round(match.width),
+      Math.round(match.height)
+    ].join(":");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(match);
+  }
+
+  return unique;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isOcrBlock(value: unknown): value is { paragraphs: unknown[] } {
+  return isRecord(value) && Array.isArray(value.paragraphs);
+}
+
+function isOcrParagraph(value: unknown): value is { lines: unknown[] } {
+  return isRecord(value) && Array.isArray(value.lines);
+}
+
+function isOcrLine(value: unknown): value is { text: string; bbox: Record<string, unknown> } {
+  return isRecord(value) && typeof value.text === "string" && isRecord(value.bbox);
+}
+
+function toBox(bbox: Record<string, unknown>): { x: number; y: number; width: number; height: number } {
+  const x0 = typeof bbox.x0 === "number" ? bbox.x0 : 0;
+  const y0 = typeof bbox.y0 === "number" ? bbox.y0 : 0;
+  const x1 = typeof bbox.x1 === "number" ? bbox.x1 : x0;
+  const y1 = typeof bbox.y1 === "number" ? bbox.y1 : y0;
+
+  return {
+    x: x0,
+    y: y0,
+    width: Math.max(1, x1 - x0),
+    height: Math.max(1, y1 - y0)
+  };
 }
 
 function drawBitmapToCanvas(bitmap: ImageBitmap): HTMLCanvasElement {

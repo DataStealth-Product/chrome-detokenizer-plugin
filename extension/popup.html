@@ -58,6 +58,21 @@
         font-size: 11px;
         color: #334b73;
       }
+
+      .warning {
+        display: none;
+        background: #fff4de;
+        border: 1px solid #f0c36d;
+        border-radius: 10px;
+        padding: 10px;
+        font-size: 12px;
+        color: #6a4210;
+        line-height: 1.4;
+      }
+
+      .warning[data-visible="true"] {
+        display: block;
+      }
     </style>
   </head>
   <body>
@@ -83,6 +98,7 @@
         <button id="clear-sensitive-state" type="button">Purge Sensitive State</button>
       </section>
       <section class="panel" id="metrics"></section>
+      <section class="warning" id="visual-ocr-warning" data-visible="false" aria-live="polite"></section>
       <p class="status" id="status">Loading...</p>
     </main>
     <script type="module" src="/src/popup/main.ts"></script>

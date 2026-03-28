@@ -11,6 +11,7 @@ function createChromeMock() {
     runtime: {
       onInstalled: createChromeEventMock<[]>(),
       onMessage: createChromeEventMock<[unknown, { tab?: { id?: number } }, (response: unknown) => void]>(),
+      sendMessage: vi.fn(),
       getManifest: vi.fn(() => ({
         host_permissions: ["https://detokenizer.example.com/*"]
       }))
@@ -366,5 +367,64 @@ describe("background entrypoint", () => {
     const returnValue = onMessage({ type: "UNKNOWN" }, {}, () => undefined);
 
     expect(returnValue).toBe(false);
+  });
+
+  it("rewrites supported text downloads before handing them to chrome.downloads", async () => {
+    const chromeMock = createChromeMock();
+    vi.stubGlobal("chrome", chromeMock);
+
+    let capturedBlob: Blob | null = null;
+    vi.spyOn(URL, "createObjectURL").mockImplementation((blob: Blob | MediaSource) => {
+      capturedBlob = blob as Blob;
+      return "blob:detokenized-download";
+    });
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "https://fixtures.example.com/sample.txt") {
+          return new Response("TXT token: [<TOKEN-Name-J>] [<TOKEN-Name-X>]", {
+            status: 200,
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
+          });
+        }
+
+        return new Response(JSON.stringify({ mappings: { "[<TOKEN-Name-J>]": "James" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      })
+    );
+
+    await importBackgroundModule();
+
+    const onMessage = getOnMessageListener(chromeMock);
+    const responses: unknown[] = [];
+    const keepChannelOpen = onMessage(
+      {
+        type: "CONTENT_PROCESS_DOWNLOAD",
+        payload: {
+          url: "https://fixtures.example.com/sample.txt",
+          fileName: "sample.txt"
+        }
+      },
+      { tab: { id: 4, url: "https://fixtures.example.com/page" } },
+      (response) => responses.push(response)
+    );
+
+    expect(keepChannelOpen).toBe(true);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(responses[0]).toEqual({ ok: true });
+    expect(chromeMock.downloads.download).toHaveBeenCalledWith({
+      url: "blob:detokenized-download",
+      filename: "sample.txt",
+      saveAs: false
+    });
+    expect(capturedBlob).not.toBeNull();
+    await expect(capturedBlob?.text()).resolves.toContain("James");
+    await expect(capturedBlob?.text()).resolves.toContain("[<TOKEN-Name-X>]");
   });
 });

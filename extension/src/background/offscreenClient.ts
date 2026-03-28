@@ -26,7 +26,15 @@ export class OffscreenClient {
       }
     });
 
-    return (response as { surfaces: SurfaceScanResult[] }).surfaces;
+    const parsed = response as { surfaces?: SurfaceScanResult[]; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!Array.isArray(parsed.surfaces)) {
+      throw new Error("invalid_offscreen_visual_scan_response");
+    }
+
+    return parsed.surfaces;
   }
 
   async scanImageArtifact(bytes: ArrayBuffer, contentType: string): Promise<ImageArtifactScanResult> {
@@ -38,7 +46,15 @@ export class OffscreenClient {
       }
     });
 
-    return (response as { result: ImageArtifactScanResult }).result;
+    const parsed = response as { result?: ImageArtifactScanResult; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.result) {
+      throw new Error("invalid_offscreen_image_scan_response");
+    }
+
+    return parsed.result;
   }
 
   async rewriteImageArtifact(bytes: ArrayBuffer, contentType: string, replacements: ReplacementRegion[]): Promise<string> {
@@ -51,7 +67,15 @@ export class OffscreenClient {
       }
     });
 
-    return (response as { objectUrl: string }).objectUrl;
+    const parsed = response as { objectUrl?: string; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.objectUrl) {
+      throw new Error("invalid_offscreen_image_rewrite_response");
+    }
+
+    return parsed.objectUrl;
   }
 
   async scanPdfArtifact(bytes: ArrayBuffer): Promise<PdfArtifactScanResult> {
@@ -60,7 +84,15 @@ export class OffscreenClient {
       payload: { bytes }
     });
 
-    return (response as { result: PdfArtifactScanResult }).result;
+    const parsed = response as { result?: PdfArtifactScanResult; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.result) {
+      throw new Error("invalid_offscreen_pdf_scan_response");
+    }
+
+    return parsed.result;
   }
 
   async rewritePdfArtifact(bytes: ArrayBuffer, pages: PdfPageRewriteInstruction[]): Promise<string> {
@@ -69,7 +101,15 @@ export class OffscreenClient {
       payload: { bytes, pages }
     });
 
-    return (response as { objectUrl: string }).objectUrl;
+    const parsed = response as { objectUrl?: string; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.objectUrl) {
+      throw new Error("invalid_offscreen_pdf_rewrite_response");
+    }
+
+    return parsed.objectUrl;
   }
 
   async scanOfficeArtifact(bytes: ArrayBuffer, extension: "docx" | "xlsx" | "pptx"): Promise<OfficeArtifactScanResult> {
@@ -78,7 +118,15 @@ export class OffscreenClient {
       payload: { bytes, extension }
     });
 
-    return (response as { result: OfficeArtifactScanResult }).result;
+    const parsed = response as { result?: OfficeArtifactScanResult; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.result) {
+      throw new Error("invalid_offscreen_office_scan_response");
+    }
+
+    return parsed.result;
   }
 
   async rewriteOfficeArtifact(
@@ -91,7 +139,15 @@ export class OffscreenClient {
       payload: { bytes, extension, mappings }
     });
 
-    return (response as { objectUrl: string }).objectUrl;
+    const parsed = response as { objectUrl?: string; error?: string };
+    if (parsed.error) {
+      throw new Error(parsed.error);
+    }
+    if (!parsed.objectUrl) {
+      throw new Error("invalid_offscreen_office_rewrite_response");
+    }
+
+    return parsed.objectUrl;
   }
 
   async revokeObjectUrl(objectUrl: string): Promise<void> {

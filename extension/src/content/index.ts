@@ -42,6 +42,12 @@ let runtimeConfig = defaultRuntimeConfig;
 let observing = false;
 let processing = false;
 let visualScanTimer: number | undefined;
+let visualScanInFlight = false;
+let visualScanQueued = false;
+let visualScanBlockedUntil = 0;
+let visualScanDisabledError: string | undefined;
+let lastVisualScanError: string | undefined;
+let bypassDownloadInterception = false;
 const pageScope = getDetokenizationScope(window.location.href);
 const supportedPage = isSupportedPageUrl(window.location.href) && pageScope !== null;
 
@@ -180,6 +186,7 @@ async function loadRuntimeConfig() {
 }
 
 function applyRuntimeConfig(nextConfig: typeof defaultRuntimeConfig): void {
+  const previousConfig = runtimeConfig;
   runtimeConfig = nextConfig;
 
   if (!supportedPage) {
@@ -188,12 +195,21 @@ function applyRuntimeConfig(nextConfig: typeof defaultRuntimeConfig): void {
 
   if (!isProcessingAllowed()) {
     pendingRoots.clear();
+    resetVisualScanState();
     visualOverlayManager.clear();
     if (observing) {
       observer.disconnect();
       observing = false;
     }
     return;
+  }
+
+  if (
+    previousConfig.enabled !== nextConfig.enabled ||
+    previousConfig.crossOriginIframesEnabled !== nextConfig.crossOriginIframesEnabled ||
+    previousConfig.visualOcrEnabled !== nextConfig.visualOcrEnabled
+  ) {
+    resetVisualScanState();
   }
 
   if (!observing) {
@@ -210,7 +226,7 @@ function isProcessingAllowed(): boolean {
 }
 
 function handleDownloadClick(event: MouseEvent): void {
-  if (!runtimeConfig.automaticDownloadsEnabled || !supportedPage) {
+  if (bypassDownloadInterception || !runtimeConfig.enabled || !runtimeConfig.automaticDownloadsEnabled || !supportedPage) {
     return;
   }
 
@@ -233,19 +249,69 @@ function handleDownloadClick(event: MouseEvent): void {
       url: target.href,
       fileName
     }
+  }).then((response: unknown) => {
+    if (
+      !response ||
+      typeof response !== "object" ||
+      !("ok" in response) ||
+      response.ok !== true
+    ) {
+      const error = typeof response === "object" && response && "error" in response && typeof response.error === "string"
+        ? response.error
+        : "download_intercept_failed";
+      console.warn(`[detokenizer] download intercept failed: ${error}`);
+      replayNativeDownload(target);
+    }
   }).catch((error) => {
     const message = error instanceof Error ? error.message : "download_intercept_failed";
     console.warn(`[detokenizer] download intercept failed: ${message}`);
+    replayNativeDownload(target);
   });
+}
+
+function replayNativeDownload(target: HTMLAnchorElement): void {
+  bypassDownloadInterception = true;
+  try {
+    const nativeAnchor = document.createElement("a");
+    nativeAnchor.href = target.href;
+    if (target.download) {
+      nativeAnchor.download = target.download;
+    }
+    if (target.target) {
+      nativeAnchor.target = target.target;
+    }
+    if (target.rel) {
+      nativeAnchor.rel = target.rel;
+    }
+
+    nativeAnchor.style.display = "none";
+    document.body.append(nativeAnchor);
+    nativeAnchor.click();
+    nativeAnchor.remove();
+  } finally {
+    window.setTimeout(() => {
+      bypassDownloadInterception = false;
+    }, 0);
+  }
 }
 
 function scheduleVisualSurfaceScan(): void {
   if (!runtimeConfig.visualOcrEnabled || !isProcessingAllowed()) {
+    resetVisualScanState();
     visualOverlayManager.clear();
     return;
   }
 
+  if (visualScanDisabledError || Date.now() < visualScanBlockedUntil) {
+    return;
+  }
+
   if (visualScanTimer !== undefined) {
+    return;
+  }
+
+  if (visualScanInFlight) {
+    visualScanQueued = true;
     return;
   }
 
@@ -256,38 +322,114 @@ function scheduleVisualSurfaceScan(): void {
 }
 
 async function scanVisualSurfaces(): Promise<void> {
-  const batch = visualSurfaceScanner.scan();
-  if (batch.descriptors.length === 0 || !pageScope) {
-    visualOverlayManager.clear();
+  if (visualScanInFlight) {
+    visualScanQueued = true;
     return;
   }
 
+  visualScanInFlight = true;
+
   try {
-    const response = await chrome.runtime.sendMessage({
-      type: MessageType.CONTENT_SCAN_VISUAL_SURFACES,
-      payload: {
-        domain: pageScope,
-        surfaces: batch.descriptors,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        devicePixelRatio: window.devicePixelRatio || 1
+    const batch = visualSurfaceScanner.scan();
+    if (batch.descriptors.length === 0 || !pageScope) {
+      visualOverlayManager.clear();
+      return;
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: MessageType.CONTENT_SCAN_VISUAL_SURFACES,
+        payload: {
+          domain: pageScope,
+          surfaces: batch.descriptors,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio || 1
+        }
+      });
+
+      const parsed = parseMessage(VisualOverlayResponseSchema, response);
+      if (!parsed) {
+        logVisualScanError("invalid_visual_overlay_response");
+        return;
       }
-    });
 
-    const parsed = parseMessage(VisualOverlayResponseSchema, response);
-    if (!parsed) {
-      console.warn("[detokenizer] invalid visual overlay response");
-      return;
+      if (parsed.error) {
+        handleVisualScanError(parsed.error);
+        return;
+      }
+
+      clearVisualScanErrorState();
+      visualOverlayManager.apply(parsed.overlays, batch.elementBySurfaceId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "visual_scan_failed";
+      handleVisualScanError(message);
     }
-
-    if (parsed.error) {
-      console.warn(`[detokenizer] visual scan error: ${parsed.error}`);
-      return;
+  } finally {
+    visualScanInFlight = false;
+    if (visualScanQueued) {
+      visualScanQueued = false;
+      scheduleVisualSurfaceScan();
     }
-
-    visualOverlayManager.apply(parsed.overlays, batch.elementBySurfaceId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "visual_scan_failed";
-    console.warn(`[detokenizer] visual scan failed: ${message}`);
   }
+}
+
+function handleVisualScanError(message: string): void {
+  visualOverlayManager.clear();
+
+  if (message === "text_detector_unavailable") {
+    visualScanDisabledError = message;
+    logVisualScanError(message);
+    return;
+  }
+
+  if (message.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")) {
+    visualScanBlockedUntil = Date.now() + 1_500;
+    logVisualScanError(message, "debug");
+    return;
+  }
+
+  if (message.includes("Either the '<all_urls>' or 'activeTab' permission is required.")) {
+    visualScanBlockedUntil = Date.now() + 5_000;
+    logVisualScanError(message);
+    return;
+  }
+
+  logVisualScanError(message);
+}
+
+function clearVisualScanErrorState(): void {
+  visualScanBlockedUntil = 0;
+  visualScanDisabledError = undefined;
+  lastVisualScanError = undefined;
+}
+
+function resetVisualScanState(): void {
+  if (visualScanTimer !== undefined) {
+    window.clearTimeout(visualScanTimer);
+    visualScanTimer = undefined;
+  }
+
+  visualScanInFlight = false;
+  visualScanQueued = false;
+  clearVisualScanErrorState();
+}
+
+function logVisualScanError(message: string, level: "warn" | "debug" = "warn"): void {
+  if (message === lastVisualScanError) {
+    return;
+  }
+
+  lastVisualScanError = message;
+  if (level === "debug") {
+    console.debug(`[detokenizer] visual scan backoff: ${message}`);
+    return;
+  }
+
+  if (message === "invalid_visual_overlay_response") {
+    console.warn("[detokenizer] invalid visual overlay response");
+    return;
+  }
+
+  console.warn(`[detokenizer] visual scan error: ${message}`);
 }

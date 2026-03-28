@@ -26,7 +26,18 @@ export class VisualOverlayManager {
 
   apply(overlays: VisualOverlay[], elementBySurfaceId: Map<string, Element>): void {
     this.ensureRoot();
-    this.bindings.clear();
+
+    for (const [surfaceId, element] of elementBySurfaceId) {
+      const existing = this.bindings.get(surfaceId);
+      if (!existing) {
+        continue;
+      }
+
+      this.bindings.set(surfaceId, {
+        element,
+        regions: existing.regions
+      });
+    }
 
     for (const overlay of overlays) {
       const element = elementBySurfaceId.get(overlay.surfaceId);
@@ -38,6 +49,12 @@ export class VisualOverlayManager {
         element,
         regions: overlay.replacementRegions
       });
+    }
+
+    for (const [surfaceId, binding] of [...this.bindings.entries()]) {
+      if (!binding.element.isConnected) {
+        this.bindings.delete(surfaceId);
+      }
     }
 
     this.render();

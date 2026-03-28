@@ -19,7 +19,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `FIXTURE_PORT=${fixturePort} node ${path.resolve(currentDir, "fixture-server.mjs")}`,
+      command: `FIXTURE_PORT=${fixturePort} FIXTURE_STRICT_PORT=1 node ${path.resolve(currentDir, "fixture-server.mjs")}`,
       url: `http://127.0.0.1:${fixturePort}/health`,
       cwd: workspaceRoot,
       reuseExistingServer: false

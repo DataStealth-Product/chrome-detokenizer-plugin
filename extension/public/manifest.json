@@ -5,10 +5,11 @@
   "description": "Detects tokenized DOM values and replaces them with authorized cleartext values.",
   "permissions": ["scripting", "activeTab", "storage", "tabs", "downloads", "offscreen"],
   "host_permissions": [
-    "https://*/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "<all_urls>"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
