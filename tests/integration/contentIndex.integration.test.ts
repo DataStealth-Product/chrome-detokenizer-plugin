@@ -34,11 +34,15 @@ describe("content script entrypoint", () => {
 
     const sendMessage = vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({
       enabled: true,
-      crossOriginIframesEnabled: true
+      crossOriginIframesEnabled: true,
+      visualOcrEnabled: true,
+      automaticDownloadsEnabled: true
     });
     sendMessage.mockResolvedValueOnce({
       enabled: true,
-      crossOriginIframesEnabled: true
+      crossOriginIframesEnabled: true,
+      visualOcrEnabled: true,
+      automaticDownloadsEnabled: true
     });
     sendMessage.mockResolvedValueOnce({
       mappings: {
@@ -94,7 +98,9 @@ describe("content script entrypoint", () => {
     vi.mocked(chrome.runtime.sendMessage)
       .mockResolvedValueOnce({
         enabled: true,
-        crossOriginIframesEnabled: true
+        crossOriginIframesEnabled: true,
+        visualOcrEnabled: true,
+        automaticDownloadsEnabled: true
       })
       .mockResolvedValueOnce({ invalid: true });
 
@@ -146,7 +152,11 @@ describe("content script entrypoint", () => {
     await import("../../extension/src/content/index");
     await Promise.resolve();
 
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(1);
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "CONTENT_DETECTED_TOKENS"
+      })
+    );
     expect(document.body.textContent).toContain("[<TOKEN-Name-J>]");
   });
 });
